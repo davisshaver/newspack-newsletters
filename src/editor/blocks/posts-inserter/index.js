@@ -14,6 +14,8 @@ import {
 	RangeControl,
 	Button,
 	ToggleControl,
+	FontSizePicker,
+	ColorPicker,
 	PanelBody,
 	Spinner,
 	Toolbar,
@@ -44,6 +46,7 @@ const PostsInserterBlock = ( {
 	setHandledPostsIds,
 	setInsertedPostsIds,
 	removeBlock,
+	blockEditorSettings,
 } ) => {
 	const [ isReady, setIsReady ] = useState( ! attributes.displayFeaturedImage );
 	const stringifiedPostList = JSON.stringify( postList );
@@ -163,9 +166,42 @@ const PostsInserterBlock = ( {
 						checked={ attributes.displayFeaturedImage }
 						onChange={ value => setAttributes( { displayFeaturedImage: value } ) }
 					/>
+					<ToggleControl
+						label={ __( 'Display author', 'newspack-newsletters' ) }
+						checked={ attributes.displayAuthor }
+						onChange={ value => setAttributes( { displayAuthor: value } ) }
+					/>
 				</PanelBody>
 				<PanelBody title={ __( 'Sorting and filtering', 'newspack-newsletters' ) }>
 					<QueryControlsSettings attributes={ attributes } setAttributes={ setAttributes } />
+				</PanelBody>
+				<PanelBody title={ __( 'Text style', 'newspack-newsletters' ) }>
+					<FontSizePicker
+						fontSizes={ blockEditorSettings.fontSizes }
+						value={ attributes.textFontSize }
+						fallbackFontSize={ 16 }
+						onChange={ value => setAttributes( { textFontSize: isNaN( value ) ? null : value } ) }
+					/>
+					<ColorPicker
+						color={ attributes.textColor }
+						onChangeComplete={ value => setAttributes( { textColor: value.hex } ) }
+						disableAlpha
+					/>
+				</PanelBody>
+				<PanelBody title={ __( 'Heading style', 'newspack-newsletters' ) }>
+					<FontSizePicker
+						fontSizes={ blockEditorSettings.fontSizes }
+						value={ attributes.headingFontSize }
+						fallbackFontSize={ 25 }
+						onChange={ value =>
+							setAttributes( { headingFontSize: isNaN( value ) ? null : value } )
+						}
+					/>
+					<ColorPicker
+						color={ attributes.headingColor }
+						onChangeComplete={ value => setAttributes( { headingColor: value.hex } ) }
+						disableAlpha
+					/>
 				</PanelBody>
 			</InspectorControls>
 
@@ -205,9 +241,12 @@ const PostsInserterBlockWithSelect = compose( [
 			isDisplayingSpecificPosts,
 			specificPosts,
 			preventDeduplication,
+			tags,
+			tagExclusions,
+			categoryExclusions,
 		} = props.attributes;
 		const { getEntityRecords, getMedia } = select( 'core' );
-		const { getSelectedBlock, getBlocks } = select( 'core/block-editor' );
+		const { getSelectedBlock, getBlocks, getSettings } = select( 'core/block-editor' );
 		const catIds = categories && categories.length > 0 ? categories.map( cat => cat.id ) : [];
 
 		const { getHandledPostIds } = select( POSTS_INSERTER_STORE_NAME );
@@ -222,10 +261,13 @@ const PostsInserterBlockWithSelect = compose( [
 				: pickBy(
 						{
 							categories: catIds,
+							tags,
 							order,
 							orderby: orderBy,
 							per_page: postsToShow,
 							exclude: preventDeduplication ? [] : exclude,
+							categories_exclude: categoryExclusions,
+							tags_exclude: tagExclusions,
 						},
 						value => ! isUndefined( value )
 				  );
@@ -244,6 +286,7 @@ const PostsInserterBlockWithSelect = compose( [
 		return {
 			// Not used by the component, but needed in deduplication.
 			existingBlocks: getBlocks(),
+			blockEditorSettings: getSettings(),
 			selectedBlock: getSelectedBlock(),
 			postList: posts.map( post => {
 				if ( post.featured_media ) {
@@ -308,6 +351,10 @@ export default () => {
 				type: 'boolean',
 				default: true,
 			},
+			displayAuthor: {
+				type: 'boolean',
+				default: false,
+			},
 			innerBlocksToInsert: {
 				type: 'array',
 				default: '',
@@ -321,6 +368,34 @@ export default () => {
 				default: false,
 			},
 			specificPosts: {
+				type: 'array',
+				default: [],
+			},
+			textFontSize: {
+				type: 'number',
+				default: 16,
+			},
+			headingFontSize: {
+				type: 'number',
+				default: 25,
+			},
+			textColor: {
+				type: 'string',
+				default: '#000',
+			},
+			headingColor: {
+				type: 'string',
+				default: '#000',
+			},
+			tags: {
+				type: 'array',
+				default: [],
+			},
+			tagExclusions: {
+				type: 'array',
+				default: [],
+			},
+			categoryExclusions: {
 				type: 'array',
 				default: [],
 			},

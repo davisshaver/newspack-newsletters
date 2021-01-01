@@ -1,4 +1,9 @@
 /**
+ * External dependencies
+ */
+import { get, isEmpty } from 'lodash';
+
+/**
  * WordPress dependencies
  */
 import { compose } from '@wordpress/compose';
@@ -20,6 +25,7 @@ const Editor = compose( [
 	withSelect( select => {
 		const {
 			getCurrentPostId,
+			getCurrentPostAttribute,
 			getEditedPostAttribute,
 			isPublishingPost,
 			isSavingPost,
@@ -28,8 +34,16 @@ const Editor = compose( [
 		const { getActiveGeneralSidebarName } = select( 'core/edit-post' );
 		const { getSettings } = select( 'core/block-editor' );
 		const meta = getEditedPostAttribute( 'meta' );
-		const status = getEditedPostAttribute( 'status' );
-		const sentDate = getEditedPostAttribute( 'date' );
+		const status = getCurrentPostAttribute( 'status' );
+		const sentDate = getCurrentPostAttribute( 'date' );
+		const settings = getSettings();
+		const experimentalSettingsColors = get( settings, [
+			'__experimentalFeatures',
+			'global',
+			'color',
+			'palette',
+		] );
+		const colors = settings.colors || experimentalSettingsColors || [];
 
 		return {
 			isCleanNewPost: isCleanNewPost(),
@@ -39,18 +53,21 @@ const Editor = compose( [
 				: false,
 			activeSidebarName: getActiveGeneralSidebarName(),
 			isPublishingOrSavingPost: isSavingPost() || isPublishingPost(),
-			colorPalette: getSettings().colors.reduce(
-				( colors, { slug, color } ) => ( { ...colors, [ slug ]: color } ),
+			colorPalette: colors.reduce(
+				( _colors, { slug, color } ) => ( { ..._colors, [ slug ]: color } ),
 				{}
 			),
 			status,
 			sentDate,
+			isPublic: meta.is_public,
 		};
 	} ),
 	withDispatch( dispatch => {
-		const { lockPostSaving, unlockPostSaving, editPost } = dispatch( 'core/editor' );
+		const { lockPostAutosaving, lockPostSaving, unlockPostSaving, editPost } = dispatch(
+			'core/editor'
+		);
 		const { createNotice } = dispatch( 'core/notices' );
-		return { lockPostSaving, unlockPostSaving, editPost, createNotice };
+		return { lockPostAutosaving, lockPostSaving, unlockPostSaving, editPost, createNotice };
 	} ),
 ] )( props => {
 	const [ publishEl ] = useState( document.createElement( 'div' ) );
@@ -65,21 +82,26 @@ const Editor = compose( [
 
 	// Set color palette option.
 	useEffect(() => {
+		if ( isEmpty( props.colorPalette ) ) {
+			return;
+		}
 		props.apiFetchWithErrorHandling( {
 			path: `/newspack-newsletters/v1/color-palette`,
 			data: props.colorPalette,
 			method: 'POST',
 		} );
-	}, []);
+	}, [ isEmpty( props.colorPalette ) ]);
 
 	// Fetch data from service provider.
 	useEffect(() => {
 		if ( ! props.isCleanNewPost && ! props.isPublishingOrSavingPost ) {
-			props
-				.apiFetchWithErrorHandling( getFetchDataConfig( { postId: props.postId } ) )
-				.then( result => {
-					props.editPost( getEditPostPayload( result ) );
-				} );
+			const params = getFetchDataConfig( { postId: props.postId } );
+			if ( 0 === params.path.indexOf( '/newspack-newsletters/v1/example/' ) ) {
+				return;
+			}
+			props.apiFetchWithErrorHandling( params ).then( result => {
+				props.editPost( getEditPostPayload( result ) );
+			} );
 		}
 	}, [ props.isPublishingOrSavingPost ]);
 
@@ -93,14 +115,25 @@ const Editor = compose( [
 	}, [ props.isReady ]);
 
 	useEffect(() => {
-		if ( 'publish' === props.status ) {
+		if ( 'publish' === props.status && ! props.isPublishingOrSavingPost ) {
 			const dateTime = props.sentDate ? new Date( props.sentDate ).toLocaleString() : '';
+
+			// Lock autosaving after a newsletter is sent.
+			props.lockPostAutosaving();
+
 			// Show an editor notice if the newsletter has been sent.
 			props.createNotice( 'success', props.successNote + dateTime, {
 				isDismissible: false,
 			} );
 		}
 	}, [ props.status ]);
+
+	useEffect(() => {
+		// Unhide post title if the newsletter is a public post.
+		document.querySelector( '.editor-post-title' ).style.display = props.isPublic
+			? 'initial'
+			: 'none';
+	}, [ props.isPublic ]);
 
 	return createPortal( <SendButton />, publishEl );
 } );

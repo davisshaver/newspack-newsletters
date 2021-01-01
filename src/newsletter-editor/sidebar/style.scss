@@ -22,10 +22,16 @@
 
 	&__name-textcontrol {
 		margin-top: 8px;
+		&--separated {
+			margin-top: 14px;
+			padding-top: 8px;
+			border-top: 1px solid $light-gray-500;
+		}
 	}
 
 	&__subject-textcontrol,
-	&__to-selectcontrol {
+	&__to-selectcontrol,
+	&__sendmode-radiocontrol {
 		.components-base-control__label {
 			font-weight: 600;
 		}
@@ -47,6 +53,10 @@
 
 	&__error input.components-text-control__input {
 		border-color: $alert-red;
+	}
+
+	&__disable-ads {
+		margin-top: 2em;
 	}
 }
 

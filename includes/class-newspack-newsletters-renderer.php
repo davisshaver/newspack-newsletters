@@ -16,7 +16,7 @@ final class Newspack_Newsletters_Renderer {
 	 *
 	 * @var Object
 	 */
-	protected static $color_palette = null;
+	public static $color_palette = null;
 
 	/**
 	 * The header font.
@@ -31,6 +31,13 @@ final class Newspack_Newsletters_Renderer {
 	 * @var String
 	 */
 	protected static $font_body = null;
+
+	/**
+	 * Ads to insert.
+	 *
+	 * @var Array
+	 */
+	protected static $ads_to_insert = [];
 
 	/**
 	 * Convert a list to HTML attributes.
@@ -110,6 +117,17 @@ final class Newspack_Newsletters_Renderer {
 		if ( isset( $block_attrs['customColor'] ) ) {
 			$colors['border-color'] = $block_attrs['customColor'];
 		}
+
+		// Custom color handling.
+		if ( isset( $block_attrs['style'] ) ) {
+			if ( isset( $block_attrs['style']['color']['background'] ) ) {
+				$colors['background-color'] = $block_attrs['style']['color']['background'];
+			}
+			if ( isset( $block_attrs['style']['color']['text'] ) ) {
+				$colors['color'] = $block_attrs['style']['color']['text'];
+			}
+		}
+
 		return $colors;
 	}
 
@@ -127,15 +145,6 @@ final class Newspack_Newsletters_Renderer {
 		$font_size = self::get_font_size( $attrs );
 		if ( isset( $font_size ) ) {
 			$attrs['font-size'] = $font_size;
-		}
-
-		if ( isset( $attrs['style'] ) ) {
-			if ( isset( $attrs['style']['color']['background'] ) ) {
-				$attrs['background-color'] = $attrs['style']['color']['background'];
-			}
-			if ( isset( $attrs['style']['color']['text'] ) ) {
-				$attrs['color'] = $attrs['style']['color']['text'];
-			}
 		}
 
 		// Remove block-only attributes.
@@ -158,7 +167,7 @@ final class Newspack_Newsletters_Renderer {
 		}
 
 		if ( isset( $attrs['full-width'] ) && 'full-width' == $attrs['full-width'] && isset( $attrs['background-color'] ) ) {
-			$attrs['padding'] = '20px 0';
+			$attrs['padding'] = '12px 0';
 		}
 
 		return $attrs;
@@ -170,18 +179,23 @@ final class Newspack_Newsletters_Renderer {
 	 * @param string $html input HTML.
 	 * @return string HTML with processed links.
 	 */
-	private static function process_links( $html ) {
+	public static function process_links( $html ) {
 		preg_match_all( '/href="([^"]*)"/', $html, $matches );
 		$href_params = $matches[0];
 		$urls        = $matches[1];
 		foreach ( $urls as $index => $url ) {
-			$url_with_params = add_query_arg(
-				[
-					'utm_medium' => 'email',
-				],
+			$url_with_params = apply_filters(
+				'newspack_newsletters_process_link',
+				add_query_arg(
+					[
+						'utm_medium' => 'email',
+					],
+					$url
+				),
 				$url
 			);
-			$html            = str_replace( $href_params[ $index ], 'href="' . $url_with_params . '"', $html );
+
+			$html = str_replace( $href_params[ $index ], 'href="' . $url_with_params . '"', $html );
 		}
 		return $html;
 	}
@@ -197,7 +211,7 @@ final class Newspack_Newsletters_Renderer {
 	 * @param array    $default_attrs Default attributes for the component.
 	 * @return string MJML component.
 	 */
-	private static function render_mjml_component( $block, $is_in_column = false, $is_in_group = false, $default_attrs = [] ) {
+	public static function render_mjml_component( $block, $is_in_column = false, $is_in_group = false, $default_attrs = [] ) {
 		$block_name   = $block['blockName'];
 		$attrs        = $block['attrs'];
 		$inner_blocks = $block['innerBlocks'];
@@ -221,7 +235,7 @@ final class Newspack_Newsletters_Renderer {
 		// Default attributes for the column which will envelop the component.
 		$column_attrs = array_merge(
 			array(
-				'padding' => '20px',
+				'padding' => '12px',
 			)
 		);
 
@@ -293,8 +307,8 @@ final class Newspack_Newsletters_Renderer {
 				if ( isset( $attrs['height'] ) ) {
 					$img_attrs['height'] = $attrs['height'] . 'px';
 				}
-				if ( isset( $attrs['linkDestination'] ) ) {
-					$img_attrs['href'] = $attrs['linkDestination'];
+				if ( isset( $attrs['href'] ) ) {
+					$img_attrs['href'] = $attrs['href'];
 				} else {
 					$maybe_link = $img->parentNode;// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 					if ( $maybe_link && 'a' === $maybe_link->nodeName && $maybe_link->getAttribute( 'href' ) ) { // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
@@ -562,6 +576,55 @@ final class Newspack_Newsletters_Renderer {
 	}
 
 	/**
+	 * Get total length of newsletter's content.
+	 *
+	 * @param array $blocks Array of post blocks.
+	 * @return number Total length of the newsletter content.
+	 */
+	private static function get_total_newsletter_character_length( $blocks ) {
+		return array_reduce(
+			$blocks,
+			function( $length, $block ) {
+				if ( 'newspack-newsletters/posts-inserter' === $block['blockName'] ) {
+					$length += self::get_total_newsletter_character_length( $block['attrs']['innerBlocksToInsert'] );
+				} elseif ( isset( $block['innerBlocks'] ) && count( $block['innerBlocks'] ) ) {
+					$length += self::get_total_newsletter_character_length( $block['innerBlocks'] );
+				} else {
+					$length += strlen( wp_strip_all_tags( $block['innerHTML'] ) );
+				}
+				return $length;
+			},
+			0
+		);
+	}
+
+	/**
+	 * Insert ads in a piece of markup.
+	 *
+	 * @param string $markup The markup.
+	 * @param number $current_position Current position, as character offset.
+	 * @return string Markup with ads inserted.
+	 */
+	private static function insert_ads( $markup, $current_position ) {
+		foreach ( self::$ads_to_insert as &$ad_to_insert ) {
+			if (
+				! $ad_to_insert['is_inserted'] &&
+				(
+					// If ad is at 100%, insert it only in the last pass, which appends ads to the bottom of the newsletter.
+					// Otherwise, such ad might end up right before the last block because of the `>=` check below.
+					1 === $ad_to_insert['percentage']
+						? INF === $current_position
+						: $current_position >= $ad_to_insert['precise_position']
+				)
+			) {
+				$markup                     .= $ad_to_insert['markup'];
+				$ad_to_insert['is_inserted'] = true;
+			}
+		}
+		return $markup;
+	}
+
+	/**
 	 * Convert a WP post to MJML components.
 	 *
 	 * @param WP_Post $post The post.
@@ -569,47 +632,78 @@ final class Newspack_Newsletters_Renderer {
 	 * @return string MJML markup to be injected into the template.
 	 */
 	private static function post_to_mjml_components( $post, $include_ads ) {
-		self::$color_palette = json_decode( get_option( 'newspack_newsletters_color_palette', false ), true );
-		self::$font_header   = get_post_meta( $post->ID, 'font_header', true );
-		self::$font_body     = get_post_meta( $post->ID, 'font_body', true );
-		if ( ! in_array( self::$font_header, Newspack_Newsletters::$supported_fonts ) ) {
-			self::$font_header = 'Arial';
-		}
-		if ( ! in_array( self::$font_body, Newspack_Newsletters::$supported_fonts ) ) {
-			self::$font_body = 'Georgia';
-		}
-		$blocks = parse_blocks( $post->post_content );
-		$body   = '';
-		foreach ( $blocks as $block ) {
-			$block_content = self::render_mjml_component( $block );
-			if ( ! empty( $block_content ) ) {
-				$body .= $block_content;
+		$body         = '';
+		$valid_blocks = array_filter(
+			parse_blocks( $post->post_content ),
+			function ( $block ) {
+				return null !== $block['blockName'];
 			}
-		}
+		);
+		$total_length = self::get_total_newsletter_character_length( $valid_blocks );
 
-		// Insert any ads.
-		if ( $include_ads ) {
-			$ads_query  = new WP_Query(
+		// Gather ads.
+		if ( $include_ads && ! get_post_meta( $post->ID, 'diable_ads', true ) ) {
+			$ads_query = new WP_Query(
 				array(
 					'post_type'      => Newspack_Newsletters_Ads::NEWSPACK_NEWSLETTERS_ADS_CPT,
 					'posts_per_page' => -1,
+					'posts_status'   => 'publish',
 				)
 			);
-			$ads        = $ads_query->get_posts();
-			$ads_markup = '';
-			foreach ( $ads as $ad ) {
+
+			foreach ( $ads_query->get_posts() as $ad ) {
 				$expiry_date = new DateTime( get_post_meta( $ad->ID, 'expiry_date', true ) );
-				if ( ! $expiry_date ) {
-					$ads_markup .= self::post_to_mjml_components( $ad, false );
-				} else {
-					$now_date    = gmdate( 'Y-m-d' );
-					$expiry_date = $expiry_date->format( 'Y-m-d' );
-					if ( $expiry_date >= $now_date ) {
-						$ads_markup .= self::post_to_mjml_components( $ad, false );
-					}
+
+				// Ad is active if it has no expiry date (a peristent ad) or the date is equal to or after today.
+				if ( ! $expiry_date || $expiry_date->format( 'Y-m-d' ) >= gmdate( 'Y-m-d' ) ) {
+					$percentage            = intval( get_post_meta( $ad->ID, 'position_in_content', true ) ) / 100;
+					self::$ads_to_insert[] = [
+						'precise_position' => $total_length * $percentage,
+						'percentage'       => $percentage,
+						'markup'           => self::post_to_mjml_components( $ad, false ),
+						'is_inserted'      => false,
+					];
 				}
 			}
-			$body .= $ads_markup;
+		}
+
+		// Build MJML body and insert ads.
+		$current_position = 0;
+		foreach ( $valid_blocks as $block ) {
+			$block_content = '';
+
+			// Insert ads between top-level group blocks' inner blocks.
+			if ( 'core/group' === $block['blockName'] ) {
+				$default_attrs = [];
+				$attrs         = self::process_attributes( $block['attrs'] );
+				if ( isset( $attrs['color'] ) ) {
+					$default_attrs['color'] = $attrs['color'];
+				}
+				$mjml_markup = '<mj-wrapper ' . self::array_to_attributes( $attrs ) . '>';
+				foreach ( $block['innerBlocks'] as $block ) {
+					$inner_block_content = self::render_mjml_component( $block, false, true, $default_attrs );
+					if ( $include_ads ) {
+						$current_position += strlen( wp_strip_all_tags( $inner_block_content ) );
+						$mjml_markup       = self::insert_ads( $mjml_markup, $current_position );
+					}
+					$mjml_markup .= $inner_block_content;
+				}
+				$block_content = $mjml_markup . '</mj-wrapper>';
+			} else {
+				// Insert ads between other blocks.
+				$block_content = self::render_mjml_component( $block );
+				if ( $include_ads ) {
+					$current_position += strlen( wp_strip_all_tags( $block_content ) );
+					$body              = self::insert_ads( $body, $current_position );
+				}
+			}
+
+			$body .= $block_content;
+		}
+
+		// Insert any remaining ads at the end.
+		if ( $include_ads ) {
+			$body = self::insert_ads( $body, INF );
 		}
 
 		return self::process_links( $body );
@@ -622,9 +716,20 @@ final class Newspack_Newsletters_Renderer {
 	 * @return string MJML markup.
 	 */
 	private static function render_mjml( $post ) {
+		self::$color_palette = json_decode( get_option( 'newspack_newsletters_color_palette', false ), true );
+		self::$font_header   = get_post_meta( $post->ID, 'font_header', true );
+		self::$font_body     = get_post_meta( $post->ID, 'font_body', true );
+		if ( ! in_array( self::$font_header, Newspack_Newsletters::$supported_fonts ) ) {
+			self::$font_header = 'Arial';
+		}
+		if ( ! in_array( self::$font_body, Newspack_Newsletters::$supported_fonts ) ) {
+			self::$font_body = 'Georgia';
+		}
+
 		$title            = $post->post_title; // phpcs:ignore WordPressVIPMinimum.Variables.VariableAnalysis.UnusedVariable
 		$body             = self::post_to_mjml_components( $post, true ); // phpcs:ignore WordPressVIPMinimum.Variables.VariableAnalysis.UnusedVariable
 		$background_color = get_post_meta( $post->ID, 'background_color', true );
+		$preview_text     = get_post_meta( $post->ID, 'preview_text', true );
 		if ( ! $background_color ) {
 			$background_color = '#ffffff';
 		}
@@ -672,10 +777,14 @@ final class Newspack_Newsletters_Renderer {
 					'timeout' => 45, // phpcs:ignore WordPressVIPMinimum.Performance.RemoteRequestTimeout.timeout_timeout
 				)
 			);
-			if ( 401 === intval( $request['response']['code'] ) ) {
-				throw new Exception( __( 'MJML rendering error.', 'newspack_newsletters' ) );
+			if ( is_wp_error( $request ) ) {
+				return $request;
+			} else {
+				if ( 401 === intval( $request['response']['code'] ) ) {
+					throw new Exception( __( 'MJML rendering error.', 'newspack_newsletters' ) );
+				}
+				return json_decode( $request['body'] )->html;
 			}
-			return is_wp_error( $request ) ? $request : json_decode( $request['body'] )->html;
 		}
 	}
 }
