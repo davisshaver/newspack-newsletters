@@ -15,8 +15,6 @@ use \DrewM\MailChimp\MailChimp;
 final class Newspack_Newsletters {
 
 	const NEWSPACK_NEWSLETTERS_CPT = 'newspack_nl_cpt';
-	const NEWSPACK_NEWSLETTERS_CAT = 'newspack_nl_category';
-	const NEWSPACK_NEWSLETTERS_TAG = 'newspack_nl_tag';
 
 	/**
 	 * Supported fonts.
@@ -66,7 +64,6 @@ final class Newspack_Newsletters {
 	 */
 	public function __construct() {
 		add_action( 'init', [ __CLASS__, 'register_cpt' ] );
-		add_action( 'init', [ __CLASS__, 'register_tax' ] );
 		add_action( 'init', [ __CLASS__, 'register_meta' ] );
 		add_action( 'init', [ __CLASS__, 'register_blocks' ] );
 		add_action( 'rest_api_init', [ __CLASS__, 'rest_api_init' ] );
@@ -80,7 +77,7 @@ final class Newspack_Newsletters {
 		add_filter( 'jetpack_relatedposts_filter_options', [ __CLASS__, 'disable_jetpack_related_posts' ] );
 		add_action( 'save_post_' . self::NEWSPACK_NEWSLETTERS_CPT, [ __CLASS__, 'save' ], 10, 3 );
 		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'branding_scripts' ] );
-
+		add_action( 'pre_get_posts', [ __CLASS__, 'adjust_wp_query_for_public_newsletters' ] );
 		self::set_service_provider( self::service_provider() );
 
 		$needs_nag = is_admin() && ! self::is_service_provider_configured() && ! get_option( 'newspack_newsletters_activation_nag_viewed', false );
@@ -450,48 +447,11 @@ final class Newspack_Newsletters {
 			'rewrite'          => [ 'slug' => $public_slug ],
 			'show_ui'          => true,
 			'show_in_rest'     => true,
-			'supports'         => [ 'author', 'editor', 'title', 'custom-fields' ],
-			'taxonomies'       => [],
+			'supports'         => [ 'author', 'editor', 'title', 'custom-fields', 'newspack_blocks' ],
+			'taxonomies'       => [ 'category', 'post_tag' ],
 			'menu_icon'        => 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjI0Ij48cGF0aCB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGQ9Ik0yMS45OSA4YzAtLjcyLS4zNy0xLjM1LS45NC0xLjdMMTIgMSAyLjk1IDYuM0MyLjM4IDYuNjUgMiA3LjI4IDIgOHYxMGMwIDEuMS45IDIgMiAyaDE2YzEuMSAwIDItLjkgMi0ybC0uMDEtMTB6TTEyIDEzTDMuNzQgNy44NCAxMiAzbDguMjYgNC44NEwxMiAxM3oiIGZpbGw9IiNhMGE1YWEiLz48L3N2Zz4K',
 		];
 		\register_post_type( self::NEWSPACK_NEWSLETTERS_CPT, $cpt_args );
-	}
-
-	/**
-	 * Register custom taxonomies for Newsletter CPT.
-	 */
-	public static function register_tax() {
-		$public_slug = get_option( 'newspack_newsletters_public_posts_slug', 'newsletter' );
-
-		$category_args = [
-			'hierarchical'  => true,
-			'public'        => true,
-			'rewrite'       => [
-				'hierarchical' => true,
-				'slug'         => $public_slug . '/category',
-			],
-			'show_in_menu'  => true,
-			'show_in_rest'  => true,
-			'show_tagcloud' => false,
-			'show_ui'       => true,
-		];
-
-		$tag_args = [
-			'hierarchical'  => false,
-			'public'        => true,
-			'rewrite'       => [ 'slug' => $public_slug . '/tag' ],
-			'show_in_menu'  => true,
-			'show_in_rest'  => true,
-			'show_tagcloud' => false,
-			'show_ui'       => true,
-		];
-
-		\register_taxonomy( self::NEWSPACK_NEWSLETTERS_CAT, self::NEWSPACK_NEWSLETTERS_CPT, $category_args );
-		\register_taxonomy( self::NEWSPACK_NEWSLETTERS_TAG, self::NEWSPACK_NEWSLETTERS_CPT, $tag_args );
-
-		// Rewrite rules are necessary for the prefixed permalinks to work.
-		\add_rewrite_rule( '^' . $public_slug . '/category/([^/]+)/?$', 'index.php?' . self::NEWSPACK_NEWSLETTERS_CAT . '=$matches[1]', 'top' );
-		\add_rewrite_rule( '^' . $public_slug . '/tag/([^/]+)/?$', 'index.php?' . self::NEWSPACK_NEWSLETTERS_TAG . '=$matches[1]', 'top' );
 	}
 
 	/**
@@ -565,36 +525,38 @@ final class Newspack_Newsletters {
 	}
 
 	/**
-	 * Filter out non-public newsletter posts on newsletter archive pages.
+	 * Allow newsletter posts to appear in archive pages, but only if set to be public.
 	 *
 	 * @param array $query The WP query object.
 	 */
 	public static function maybe_display_public_archive_posts( $query ) {
-		if (
-			is_admin() ||
-			! $query->is_main_query() ||
-			(
-				! is_post_type_archive( self::NEWSPACK_NEWSLETTERS_CPT ) &&
-				! is_tax( self::NEWSPACK_NEWSLETTERS_CAT ) &&
-				! is_tax( self::NEWSPACK_NEWSLETTERS_TAG )
-			)
-		) {
+		// Only run on the main front-end query for post category and tag archives.
+		if ( is_admin() || ! $query->is_main_query() || ( ! is_category() && ! is_tag() ) ) {
 			return;
 		}
 
-		$meta_query = $query->get( 'meta_query' );
-
-		if ( empty( $meta_query ) || ! is_array( $meta_query ) ) {
-			$meta_query = [];
+		// Allow Newsletter posts to appear in post category and tag archives.
+		if ( empty( $query->get( 'post_type' ) ) ) {
+			$query->set( 'post_type', [ 'post', self::NEWSPACK_NEWSLETTERS_CPT ] );
 		}
 
-		$meta_query[] = [
-			'key'          => 'is_public',
-			'value'        => '1',
-			'meta_compare' => '=',
-		];
+		// Filter out non-public Newsletter posts.
+		if ( self::NEWSPACK_NEWSLETTERS_CPT === get_post_type() ) {
+			$meta_query = $query->get( 'meta_query' );
 
-		$query->set( 'meta_query', $meta_query );
+			if ( empty( $meta_query ) || ! is_array( $meta_query ) ) {
+				$meta_query = [];
+			}
+
+			$meta_query[] = [
+				'key'          => 'is_public',
+				'value'        => '1',
+				'meta_compare' => '=',
+			];
+
+
+			$query->set( 'meta_query', $meta_query );
+		}
 	}
 
 	/**
@@ -1161,6 +1123,35 @@ final class Newspack_Newsletters {
 	 */
 	public static function service_provider() {
 		return get_option( 'newspack_newsletters_service_provider', false );
+	}
+
+	/**
+	 * Add meta query elements to check if Newsletter is public.
+	 *
+	 * @param object $query The query.
+	 * @return object $query The query.
+	 */
+	public static function adjust_wp_query_for_public_newsletters( $query ) {
+		if ( is_admin() ) {
+			return;
+		}
+		$post_type = $query->get( 'post_type', '' );
+		if ( self::NEWSPACK_NEWSLETTERS_CPT === $post_type || ( is_array( $post_type ) && in_array( self::NEWSPACK_NEWSLETTERS_CPT, $post_type ) ) ) {
+			$meta_query   = $query->get( 'meta_query', [] ); // phpcs:ignore WordPressVIPMinimum.Hooks.PreGetPosts.PreGetPosts
+			$meta_query[] = [
+				'relation' => 'OR',
+				[
+					'key'     => 'is_public',
+					'value'   => true,
+					'compare' => '=',
+				],
+				[
+					'key'     => 'is_public',
+					'compare' => 'NOT EXISTS',
+				],
+			];
+			$query->set( 'meta_query', $meta_query ); // phpcs:ignore WordPressVIPMinimum.Hooks.PreGetPosts.PreGetPosts
+		}
 	}
 }
 Newspack_Newsletters::instance();
