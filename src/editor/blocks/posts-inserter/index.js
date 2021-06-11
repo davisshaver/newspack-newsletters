@@ -33,6 +33,7 @@ import { Fragment, useEffect, useMemo, useState } from '@wordpress/element';
  */
 import './style.scss';
 import './deduplication';
+import blockDefinition from './block.json';
 import Icon from './icon';
 import { getTemplateBlocks, convertBlockSerializationFormat } from './utils';
 import QueryControlsSettings from './query-controls';
@@ -120,19 +121,19 @@ const PostsInserterBlock = ( {
 	const blockControlsImages = [
 		{
 			icon: 'align-none',
-			title: __( 'Show image on top', 'newspack-blocks' ),
+			title: __( 'Show image on top', 'newspack-newsletters' ),
 			isActive: attributes.featuredImageAlignment === 'top',
 			onClick: () => setAttributes( { featuredImageAlignment: 'top' } ),
 		},
 		{
 			icon: 'align-pull-left',
-			title: __( 'Show image on left', 'newspack-blocks' ),
+			title: __( 'Show image on left', 'newspack-newsletters' ),
 			isActive: attributes.featuredImageAlignment === 'left',
 			onClick: () => setAttributes( { featuredImageAlignment: 'left' } ),
 		},
 		{
 			icon: 'align-pull-right',
-			title: __( 'Show image on right', 'newspack-blocks' ),
+			title: __( 'Show image on right', 'newspack-newsletters' ),
 			isActive: attributes.featuredImageAlignment === 'right',
 			onClick: () => setAttributes( { featuredImageAlignment: 'right' } ),
 		},
@@ -143,7 +144,7 @@ const PostsInserterBlock = ( {
 			<InspectorControls>
 				<PanelBody title={ __( 'Post content settings', 'newspack-newsletters' ) }>
 					<ToggleControl
-						label={ __( 'Display post excerpt', 'newspack-newsletters' ) }
+						label={ __( 'Post excerpt', 'newspack-newsletters' ) }
 						checked={ attributes.displayPostExcerpt }
 						onChange={ value => setAttributes( { displayPostExcerpt: value } ) }
 					/>
@@ -157,19 +158,24 @@ const PostsInserterBlock = ( {
 						/>
 					) }
 					<ToggleControl
-						label={ __( 'Display date', 'newspack-newsletters' ) }
+						label={ __( 'Date', 'newspack-newsletters' ) }
 						checked={ attributes.displayPostDate }
 						onChange={ value => setAttributes( { displayPostDate: value } ) }
 					/>
 					<ToggleControl
-						label={ __( 'Display featured image', 'newspack-newsletters' ) }
+						label={ __( 'Featured image', 'newspack-newsletters' ) }
 						checked={ attributes.displayFeaturedImage }
 						onChange={ value => setAttributes( { displayFeaturedImage: value } ) }
 					/>
 					<ToggleControl
-						label={ __( 'Display author', 'newspack-newsletters' ) }
+						label={ __( "Author's name", 'newspack-newsletters' ) }
 						checked={ attributes.displayAuthor }
 						onChange={ value => setAttributes( { displayAuthor: value } ) }
+					/>
+					<ToggleControl
+						label={ __( '"Continue reading…" link', 'newspack-newsletters' ) }
+						checked={ attributes.displayContinueReading }
+						onChange={ value => setAttributes( { displayContinueReading: value } ) }
 					/>
 				</PanelBody>
 				<PanelBody title={ __( 'Sorting and filtering', 'newspack-newsletters' ) }>
@@ -244,6 +250,7 @@ const PostsInserterBlockWithSelect = compose( [
 			tags,
 			tagExclusions,
 			categoryExclusions,
+			excerptLength,
 		} = props.attributes;
 		const { getEntityRecords, getMedia } = select( 'core' );
 		const { getSelectedBlock, getBlocks, getSettings } = select( 'core/block-editor' );
@@ -268,6 +275,7 @@ const PostsInserterBlockWithSelect = compose( [
 							exclude: preventDeduplication ? [] : exclude,
 							categories_exclude: categoryExclusions,
 							tags_exclude: tagExclusions,
+							excerpt_length: excerptLength,
 						},
 						value => ! isUndefined( value )
 				  );
@@ -322,84 +330,10 @@ const PostsInserterBlockWithSelect = compose( [
 
 export default () => {
 	registerBlockType( POSTS_INSERTER_BLOCK_NAME, {
+		...blockDefinition,
 		title: 'Posts Inserter',
-		category: 'widgets',
 		icon: Icon,
 		edit: PostsInserterBlockWithSelect,
-		attributes: {
-			areBlocksInserted: {
-				type: 'boolean',
-				default: false,
-			},
-			postsToShow: {
-				type: 'number',
-				default: 3,
-			},
-			displayPostExcerpt: {
-				type: 'boolean',
-				default: true,
-			},
-			excerptLength: {
-				type: 'number',
-				default: 15,
-			},
-			displayPostDate: {
-				type: 'boolean',
-				default: false,
-			},
-			displayFeaturedImage: {
-				type: 'boolean',
-				default: true,
-			},
-			displayAuthor: {
-				type: 'boolean',
-				default: false,
-			},
-			innerBlocksToInsert: {
-				type: 'array',
-				default: '',
-			},
-			featuredImageAlignment: {
-				type: 'string',
-				default: 'left',
-			},
-			isDisplayingSpecificPosts: {
-				type: 'boolean',
-				default: false,
-			},
-			specificPosts: {
-				type: 'array',
-				default: [],
-			},
-			textFontSize: {
-				type: 'number',
-				default: 16,
-			},
-			headingFontSize: {
-				type: 'number',
-				default: 25,
-			},
-			textColor: {
-				type: 'string',
-				default: '#000',
-			},
-			headingColor: {
-				type: 'string',
-				default: '#000',
-			},
-			tags: {
-				type: 'array',
-				default: [],
-			},
-			tagExclusions: {
-				type: 'array',
-				default: [],
-			},
-			categoryExclusions: {
-				type: 'array',
-				default: [],
-			},
-		},
 		save: () => <InnerBlocks.Content />,
 	} );
 };
