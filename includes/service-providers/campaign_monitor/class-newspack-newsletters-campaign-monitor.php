@@ -16,6 +16,13 @@ define( 'CS_REST_CALL_TIMEOUT', 30 );
 final class Newspack_Newsletters_Campaign_Monitor extends \Newspack_Newsletters_Service_Provider {
 
 	/**
+	 * Provider name.
+	 *
+	 * @var string
+	 */
+	public $name = 'Campaign Monitor';
+
+	/**
 	 * Class constructor.
 	 */
 	public function __construct() {
@@ -23,7 +30,6 @@ final class Newspack_Newsletters_Campaign_Monitor extends \Newspack_Newsletters_
 		$this->controller = new Newspack_Newsletters_Campaign_Monitor_Controller( $this );
 
 		add_action( 'save_post_' . Newspack_Newsletters::NEWSPACK_NEWSLETTERS_CPT, [ $this, 'save' ], 10, 3 );
-		add_action( 'transition_post_status', [ $this, 'send' ], 10, 3 );
 
 		parent::__construct( $this );
 	}
@@ -124,7 +130,15 @@ final class Newspack_Newsletters_Campaign_Monitor extends \Newspack_Newsletters_
 			);
 		}
 
-		return $lists->response;
+		return array_map(
+			function ( $item ) {
+				return [
+					'id'   => $item->ListID, // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+					'name' => $item->Name, // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+				];
+			},
+			$lists->response
+		);
 	}
 
 	/**
@@ -321,75 +335,69 @@ final class Newspack_Newsletters_Campaign_Monitor extends \Newspack_Newsletters_
 	/**
 	 * Send a campaign.
 	 *
-	 * @param string  $new_status New status of the post.
-	 * @param string  $old_status Old status of the post.
-	 * @param WP_POST $post Post to send.
+	 * @param WP_Post $post Post to send.
 	 *
-	 * @throws Exception Error message if sending fails.
+	 * @return true|WP_Error True if the campaign was sent or error if failed.
 	 */
-	public function send( $new_status, $old_status, $post ) {
+	public function send( $post ) {
 		$post_id = $post->ID;
 
-		// Only run if the current post is a newsletter.
-		if ( ! Newspack_Newsletters::validate_newsletter_id( $post_id ) ) {
-			return;
+		$api_key   = $this->api_key();
+		$client_id = $this->client_id();
+
+		if ( ! $api_key ) {
+			return new WP_Error(
+				'newspack_newsletter_error',
+				__( 'No Campaign Monitor API key available.', 'newspack-newsletters' )
+			);
+		}
+		if ( empty( $post->post_title ) ) {
+			return new WP_Error(
+				'newspack_newsletter_error',
+				__( 'The newsletter subject cannot be empty.', 'newspack-newsletters' )
+			);
+		}
+		if ( ! $client_id ) {
+			return new WP_Error(
+				'newspack_newsletter_error',
+				__( 'No Campaign Monitor Client ID available.', 'newspack-newsletters' )
+			);
 		}
 
-		// Only run if the current service provider is Campaign Monitor.
-		if ( 'campaign_monitor' !== get_option( 'newspack_newsletters_service_provider', false ) ) {
-			return;
+		$cm_campaigns = new CS_REST_Campaigns( null, [ 'api_key' => $api_key ] );
+		$args         = $this->format_campaign_args( $post_id );
+
+		// Set the current user's email address as the email to receive sent confirmation.
+		$current_user       = wp_get_current_user();
+		$confirmation_email = $current_user->user_email;
+
+		// Create a draft campaign and get the ID from the response.
+		$new_campaign = $cm_campaigns->create( $client_id, $args );
+
+		if ( ! $new_campaign->was_successful() ) {
+			return new WP_Error(
+				'newspack_newsletter_error',
+				__( 'Failed creating Campaign Monitor campaign: ', 'newspack-newsletters' ) . $new_campaign->response->Message
+			);
 		}
 
-		if ( ( 'publish' === $new_status && 'publish' !== $old_status ) || ( 'future' === $new_status && 'future' !== $old_status ) ) {
-			try {
-				$api_key   = $this->api_key();
-				$client_id = $this->client_id();
-
-				if ( ! $api_key ) {
-					throw new Exception( __( 'No Campaign Monitor API key available.', 'newspack-newsletters' ) );
-				}
-				if ( ! $client_id ) {
-					throw new Exception( __( 'No Campaign Monitor Client ID available.', 'newspack-newsletters' ) );
-				}
-
-				$cm_campaigns = new CS_REST_Campaigns( null, [ 'api_key' => $api_key ] );
-				$args         = $this->format_campaign_args( $post_id );
-				$send_date    = 'future' === $new_status ? $post->post_date : 'Immediately';
-
-				// Set the current user's email address as the email to receive sent confirmation.
-				$current_user       = wp_get_current_user();
-				$confirmation_email = $current_user->user_email;
-
-				// Create a draft campaign and get the ID from the response.
-				$new_campaign = $cm_campaigns->create( $client_id, $args );
-
-				if ( ! $new_campaign->was_successful() ) {
-					throw new Exception(
-						__( 'Failed sending Campaign Monitor test campaign: ', 'newspack-newsletters' ) . $new_campaign->response->Message
-					);
-				}
-
-				// Send the draft campaign.
-				$campaign_to_send = new CS_REST_Campaigns( $new_campaign->response, [ 'api_key' => $api_key ] );
-				$campaign_to_send->send(
-					[
-						'ConfirmationEmail' => $confirmation_email,
-						'SendDate'          => $send_date,
-					]
-				);
-			} catch ( Exception $e ) {
-				// Reset publish status.
-				wp_update_post(
-					[
-						'ID'          => $post_id,
-						'post_status' => 'draft',
-					],
-					true
-				);
-
-				wp_die( esc_html( $e->getMessage() ) );
-			}
+		try {
+			// Send the draft campaign.
+			$campaign_to_send = new CS_REST_Campaigns( $new_campaign->response, [ 'api_key' => $api_key ] );
+			$campaign_to_send->send(
+				[
+					'ConfirmationEmail' => $confirmation_email,
+					'SendDate'          => 'Immediately',
+				]
+			);
+		} catch ( Exception $e ) {
+			return new WP_Error(
+				'newspack_newsletters_campaign_monitor_error',
+				$e->getMessage()
+			);
 		}
+
+		return true;
 	}
 
 	/**
@@ -557,5 +565,97 @@ final class Newspack_Newsletters_Campaign_Monitor extends \Newspack_Newsletters_
 	 */
 	public function trash( $post_id ) {
 		return null;
+	}
+
+	/**
+	 * Add contact to a list.
+	 *
+	 * @param array  $contact      {
+	 *    Contact data.
+	 *
+	 *    @type string   $email    Contact email address.
+	 *    @type string   $name     Contact name. Optional.
+	 *    @type string[] $metadata Contact additional metadata. Optional.
+	 * }
+	 * @param string $list_id      List to add the contact to.
+	 *
+	 * @return array|WP_Error Contact data if it was added, or error otherwise.
+	 */
+	public function add_contact( $contact, $list_id = false ) {
+		if ( false === $list_id ) {
+			return new WP_Error( 'newspack_newsletters_constant_contact_list_id', __( 'Missing list id.' ) );
+		}
+		try {
+			$api_key   = $this->api_key();
+			$client_id = $this->client_id();
+			if ( $api_key && $client_id ) {
+				$cm_subscribers   = new CS_REST_Subscribers( $list_id, [ 'api_key' => $api_key ] );
+				$email_address    = $contact['email'];
+				$found_subscriber = $cm_subscribers->get( $email_address, true );
+				$update_payload   = [
+					'EmailAddress'   => $email_address,
+					'CustomFields'   => [],
+					'ConsentToTrack' => 'yes',
+					'Resubscribe'    => true,
+				];
+
+				if ( isset( $contact['name'] ) ) {
+					$update_payload['Name'] = $contact['name'];
+				}
+
+				// Get custom fields (metadata) to create them if needed.
+				$cm_list            = new CS_REST_Lists( $list_id, [ 'api_key' => $api_key ] );
+				$custom_fields_keys = array_map(
+					function( $field ) {
+						return $field->FieldName; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+					},
+					$cm_list->get_custom_fields()->response
+				);
+				if ( isset( $contact['metadata'] ) && is_array( $contact['metadata'] && ! empty( $contact['metadata'] ) ) ) {
+					foreach ( $contact['metadata'] as $key => $value ) {
+						$update_payload['CustomFields'][] = [
+							'Key'   => $key,
+							'Value' => (string) $value,
+						];
+						if ( ! in_array( $key, $custom_fields_keys ) ) {
+							$cm_list->create_custom_field(
+								[
+									'FieldName' => $key,
+									'DataType'  => CS_REST_CUSTOM_FIELD_TYPE_TEXT,
+								]
+							);
+						}
+					}
+				}
+
+				if ( 200 === $found_subscriber->http_status_code ) {
+					$result = $cm_subscribers->update( $email_address, $update_payload );
+				} else {
+					$result = $cm_subscribers->add( $update_payload );
+				};
+				return $result;
+			}
+		} catch ( \Exception $e ) {
+			return new \WP_Error(
+				'newspack_add_contact',
+				$e->getMessage()
+			);
+		}
+	}
+
+	/**
+	 * Get the provider specific labels
+	 *
+	 * This allows us to make reference to provider specific features in the way the user is used to see them in the provider's UI
+	 *
+	 * @return array
+	 */
+	public static function get_labels() {
+		return array_merge(
+			parent::get_labels(),
+			[
+				'name' => 'Campaign Monitor',
+			]
+		);
 	}
 }

@@ -8,6 +8,7 @@ import { BaseControl, CheckboxControl, Spinner, Notice } from '@wordpress/compon
 const ProviderSidebar = ( {
 	renderSubject,
 	renderFrom,
+	renderPreviewText,
 	inFlight,
 	newsletterData,
 	apiFetch,
@@ -35,25 +36,25 @@ const ProviderSidebar = ( {
 			method: 'POST',
 		} );
 
-	useEffect(() => {
+	useEffect( () => {
 		if ( campaign ) {
 			updateMeta( {
-				senderName: campaign.from_name,
-				senderEmail: campaign.from_email,
+				senderName: campaign.activity.from_name,
+				senderEmail: campaign.activity.from_email,
 			} );
 		}
-	}, [ campaign ]);
+	}, [ campaign ] );
 
 	if ( ! campaign ) {
 		return (
 			<div className="newspack-newsletters__loading-data">
-				{ __( 'Retrieving Constant Contact data...', 'newspack-newsletters' ) }
+				{ __( 'Retrieving Constant Contact data…', 'newspack-newsletters' ) }
 				<Spinner />
 			</div>
 		);
 	}
 
-	const { status } = campaign || {};
+	const { current_status: status } = campaign || {};
 	if ( 'DRAFT' !== status ) {
 		return (
 			<Notice status="success" isDismissible={ false }>
@@ -65,22 +66,28 @@ const ProviderSidebar = ( {
 	return (
 		<Fragment>
 			{ renderSubject() }
+			{ renderPreviewText() }
+			<hr />
+			{ renderFrom( { handleSenderUpdate: setSender } ) }
+			<hr />
+			<strong className="newspack-newsletters__label">
+				{ __( 'Send to', 'newspack-newsletters' ) }
+			</strong>
 			<BaseControl
 				id="newspack-newsletters-constant_contact-lists"
 				label={ __( 'Lists', 'newspack-newsletters' ) }
 			>
-				{ lists.map( ( { id, name } ) => (
+				{ lists.map( ( { list_id: id, name } ) => (
 					<CheckboxControl
 						key={ id }
 						label={ name }
 						value={ id }
-						checked={ campaign.sent_to_contact_lists.some( list => list.id === id ) }
+						checked={ campaign?.activity?.contact_list_ids?.some( listId => listId === id ) }
 						onChange={ value => setList( id, value ) }
 						disabled={ inFlight }
 					/>
 				) ) }
 			</BaseControl>
-			{ renderFrom( { handleSenderUpdate: setSender } ) }
 		</Fragment>
 	);
 };

@@ -60,7 +60,7 @@ export default ( { onSetupStatus } ) => {
 		setInFlight( false );
 	};
 
-	useEffect(() => {
+	useEffect( () => {
 		lockPostAutosaving( 'newsletters-modal-is-open-lock' );
 		setInFlight( true );
 		apiFetch( { path: `/newspack-newsletters/v1/settings` } )
@@ -70,11 +70,11 @@ export default ( { onSetupStatus } ) => {
 				onSetupStatus( ! results.status );
 			} )
 			.catch( handleErrors );
-	}, []);
+	}, [] );
 
 	const { service_provider: serviceProvider = '', credentials = {} } = settings;
 
-	const canSubmit = values( credentials ).join( '' ).length;
+	const canSubmit = 'manual' === serviceProvider || values( credentials ).join( '' ).length;
 
 	const classes = classnames(
 		'newspack-newsletters-modal__content',
@@ -109,18 +109,22 @@ export default ( { onSetupStatus } ) => {
 								disabled: true,
 								label: __( 'Select service provider', 'newspack-newsletters' ),
 							},
-							{ value: 'mailchimp', label: __( 'Mailchimp', 'newspack-newsletters' ) },
+							{ value: 'mailchimp', label: 'Mailchimp' },
 							{
 								value: 'constant_contact',
-								label: __( 'Constant Contact', 'newspack-newsletters' ),
+								label: 'Constant Contact',
 							},
 							{
 								value: 'campaign_monitor',
-								label: __( 'Campaign Monitor', 'newspack-newsletters' ),
+								label: 'Campaign Monitor',
 							},
+							{
+								value: 'active_campaign',
+								label: 'ActiveCampaign',
+							},
+							{ value: 'manual', label: __( 'Manual / Other', 'newspack-newsletters' ) },
 						] }
 					/>
-					<hr />
 					{ 'mailchimp' === serviceProvider && (
 						<Fragment>
 							<h4>{ __( 'Enter your Mailchimp API key', 'newspack-newsletters' ) }</h4>
@@ -137,15 +141,10 @@ export default ( { onSetupStatus } ) => {
 							) }
 
 							<p>
-								<ExternalLink href="https://us1.admin.mailchimp.com/account/api/">
-									{ __( 'Generate Mailchimp API key', 'newspack-newsletters' ) }
-								</ExternalLink>
-								<span className="separator"> | </span>
-								<ExternalLink href="https://mailchimp.com/help/about-api-keys/">
-									{ __( 'About Mailchimp API keys', 'newspack-newsletters' ) }
+								<ExternalLink href="https://mailchimp.com/help/about-api-keys/#Find_or_generate_your_API_key">
+									{ __( 'Find or generate your API key', 'newspack-newsletters' ) }
 								</ExternalLink>
 							</p>
-							<hr />
 						</Fragment>
 					) }
 					{ 'constant_contact' === serviceProvider && (
@@ -165,9 +164,9 @@ export default ( { onSetupStatus } ) => {
 								className={ errors.newspack_newsletters_invalid_keys && 'has-error' }
 							/>
 							<TextControl
-								label={ __( 'Constant Contact Access token', 'newspack-newsletters' ) }
-								value={ credentials.access_token }
-								onChange={ setCredentials( 'access_token' ) }
+								label={ __( 'Constant Contact API Secret', 'newspack-newsletters' ) }
+								value={ credentials.api_secret }
+								onChange={ setCredentials( 'api_secret' ) }
 								disabled={ inFlight }
 								onKeyDown={ handleKeyDown }
 								className={ errors.newspack_newsletters_invalid_keys && 'has-error' }
@@ -185,7 +184,6 @@ export default ( { onSetupStatus } ) => {
 									{ __( 'Get Constant Contact access token', 'newspack-newsletters' ) }
 								</ExternalLink>
 							</p>
-							<hr />
 						</Fragment>
 					) }
 					{ 'campaign_monitor' === serviceProvider && (
@@ -223,11 +221,41 @@ export default ( { onSetupStatus } ) => {
 							</p>
 						</Fragment>
 					) }
+					{ 'active_campaign' === serviceProvider && (
+						<Fragment>
+							<h4>{ __( 'Enter your ActiveCampaign API URL and Key', 'newspack-newsletters' ) }</h4>
+							<TextControl
+								label={ __( 'ActiveCampaign API URL', 'newspack-newsletters' ) }
+								value={ credentials.api_key }
+								onChange={ setCredentials( 'url' ) }
+								disabled={ inFlight }
+								onKeyDown={ handleKeyDown }
+								className={ errors.newspack_newsletters_invalid_keys && 'has-error' }
+							/>
+							<TextControl
+								label={ __( 'ActiveCampaign API Key', 'newspack-newsletters' ) }
+								value={ credentials.client_id }
+								onChange={ setCredentials( 'key' ) }
+								disabled={ inFlight }
+								onKeyDown={ handleKeyDown }
+								className={ errors.newspack_newsletters_invalid_keys && 'has-error' }
+							/>
+							{ errors.newspack_newsletters_invalid_keys && (
+								<p className="error">{ errors.newspack_newsletters_invalid_keys }</p>
+							) }
+
+							<p>
+								<ExternalLink href="https://help.activecampaign.com/hc/en-us/articles/207317590-Getting-started-with-the-API">
+									{ __( 'Get ActiveCampaign API URL and Key', 'newspack-newsletters' ) }
+								</ExternalLink>
+							</p>
+						</Fragment>
+					) }
 				</div>
 			</div>
 			<div className="newspack-newsletters-modal__action-buttons">
 				<Button isPrimary onClick={ commitSettings } disabled={ inFlight || ! canSubmit }>
-					{ __( 'Save settings', 'newspack-newsletter' ) }
+					{ __( 'Save Settings', 'newspack-newsletter' ) }
 				</Button>
 			</div>
 		</Fragment>

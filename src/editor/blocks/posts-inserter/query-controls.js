@@ -2,6 +2,7 @@
  * External dependencies
  */
 import { includes, debounce } from 'lodash';
+import { AutocompleteTokenField } from 'newspack-components';
 
 /**
  * WordPress dependencies
@@ -20,18 +21,13 @@ import { Fragment, useState, useEffect } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 import { decodeEntities } from '@wordpress/html-entities';
 
-/**
- * Internal dependencies
- */
-import AutocompleteTokenField from '../../../components/autocomplete-tokenfield';
-
-const fetchPostSuggestions = search =>
+const fetchPostSuggestions = postType => search =>
 	apiFetch( {
 		path: addQueryArgs( '/wp/v2/search', {
 			search,
 			per_page: 20,
 			_fields: 'id,title',
-			subtype: 'post',
+			subtype: postType,
 		} ),
 	} ).then( posts =>
 		posts.map( post => ( {
@@ -54,17 +50,19 @@ const decodePost = encodedPost => {
 // https://github.com/WordPress/gutenberg/blob/master/packages/block-library/src/posts-inserter/edit.js
 const QueryControlsSettings = ( { attributes, setAttributes } ) => {
 	const [ categoriesList, setCategoriesList ] = useState( [] );
+	const [ postTypesList, setPostTypesList ] = useState( [ { value: 'post', label: 'Posts' } ] );
 	const [ showAdvancedFilters, setShowAdvancedFilters ] = useState( false );
 
 	const { categoryExclusions, tags, tagExclusions } = attributes;
 
-	useEffect(() => {
+	useEffect( () => {
 		apiFetch( {
 			path: addQueryArgs( `/wp/v2/categories`, {
 				per_page: -1,
 			} ),
 		} ).then( setCategoriesList );
-	}, []);
+		fetchPostTypes().then( setPostTypesList );
+	}, [] );
 
 	const categorySuggestions = categoriesList.reduce(
 		( accumulator, category ) => ( {
@@ -119,7 +117,7 @@ const QueryControlsSettings = ( { attributes, setAttributes } ) => {
 			return;
 		}
 		setIsFetchingPosts( true );
-		fetchPostSuggestions( search ).then( posts => {
+		fetchPostSuggestions( attributes.postType )( search ).then( posts => {
 			setIsFetchingPosts( false );
 			setFoundPosts( posts );
 		} );
@@ -143,11 +141,24 @@ const QueryControlsSettings = ( { attributes, setAttributes } ) => {
 				orderby: 'count',
 				order: 'desc',
 			} ),
-		} ).then( function( categories ) {
+		} ).then( categories => {
 			return categories.map( category => ( {
 				value: category.id,
 				label: decodeEntities( category.name ) || __( '(no title)', 'newspack-newsletters' ),
 			} ) );
+		} );
+	};
+
+	const fetchPostTypes = () => {
+		return apiFetch( {
+			path: addQueryArgs( '/wp/v2/types', { context: 'edit' } ),
+		} ).then( postTypes => {
+			return Object.values( postTypes )
+				.filter( postType => postType.viewable === true && postType.visibility?.show_ui === true )
+				.map( postType => ( {
+					value: postType.slug,
+					label: decodeEntities( postType.name ) || __( '(no title)', 'newspack-newsletters' ),
+				} ) );
 		} );
 	};
 
@@ -158,7 +169,7 @@ const QueryControlsSettings = ( { attributes, setAttributes } ) => {
 				_fields: 'id,name',
 				include: categoryIDs.join( ',' ),
 			} ),
-		} ).then( function( categories ) {
+		} ).then( categories => {
 			return categories.map( category => ( {
 				value: category.id,
 				label: decodeEntities( category.name ) || __( '(no title)', 'newspack-newsletters' ),
@@ -175,7 +186,7 @@ const QueryControlsSettings = ( { attributes, setAttributes } ) => {
 				orderby: 'count',
 				order: 'desc',
 			} ),
-		} ).then( function( fetchedTags ) {
+		} ).then( fetchedTags => {
 			return fetchedTags.map( tag => ( {
 				value: tag.id,
 				label: decodeEntities( tag.name ) || __( '(no title)', 'newspack-newsletters' ),
@@ -190,7 +201,7 @@ const QueryControlsSettings = ( { attributes, setAttributes } ) => {
 				_fields: 'id,name',
 				include: tagIDs.join( ',' ),
 			} ),
-		} ).then( function( fetchedTags ) {
+		} ).then( fetchedTags => {
 			return fetchedTags.map( tag => ( {
 				value: tag.id,
 				label: decodeEntities( tag.name ) || __( '(no title)', 'newspack-newsletters' ),
@@ -200,6 +211,12 @@ const QueryControlsSettings = ( { attributes, setAttributes } ) => {
 
 	return (
 		<div className="newspack-newsletters-query-controls">
+			<SelectControl
+				label={ __( 'Post type', 'newspack-newsletters' ) }
+				options={ postTypesList }
+				value={ attributes.postType }
+				onChange={ postType => setAttributes( { postType } ) }
+			/>
 			<ToggleControl
 				label={ __( 'Display specific posts', 'newspack-newsletters' ) }
 				checked={ attributes.isDisplayingSpecificPosts }
@@ -218,7 +235,7 @@ const QueryControlsSettings = ( { attributes, setAttributes } ) => {
 					suggestions={ encodePosts( foundPosts ) }
 					displayTransform={ string => {
 						const [ id, title ] = decodePost( string );
-						return title || id;
+						return title || id || '';
 					} }
 					onInputChange={ debounce( handleSpecificPostsInput, 400 ) }
 				/>

@@ -1,16 +1,17 @@
 /**
  * WordPress dependencies
  */
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import { compose } from '@wordpress/compose';
 import { withSelect, withDispatch } from '@wordpress/data';
-import { useState, Fragment } from '@wordpress/element';
+import { Fragment } from '@wordpress/element';
 import { Button, TextControl, TextareaControl, ToggleControl } from '@wordpress/components';
 
 /**
  * External dependencies
  */
 import classnames from 'classnames';
+import { once } from 'lodash';
 
 /**
  * Internal dependencies
@@ -21,6 +22,9 @@ import withApiHandler from '../../components/with-api-handler';
 import './style.scss';
 
 const Sidebar = ( {
+	isConnected,
+	oauthUrl,
+	onAuthorize,
 	inFlight,
 	errors,
 	editPost,
@@ -33,22 +37,29 @@ const Sidebar = ( {
 	apiFetchWithErrorHandling,
 	postId,
 } ) => {
-	const [ senderDirty, setSenderDirty ] = useState( false );
-
 	const apiFetch = config =>
 		apiFetchWithErrorHandling( config ).then( result => {
-			editPost( getEditPostPayload( result ) );
-			setSenderDirty( false );
+			if ( typeof result === 'object' && result.campaign ) {
+				editPost( getEditPostPayload( result ) );
+			} else {
+				return result;
+			}
 		} );
 
 	const renderSubject = () => (
-		<TextControl
-			label={ __( 'Subject', 'newspack-newsletters' ) }
-			className="newspack-newsletters__subject-textcontrol"
-			value={ title }
-			disabled={ inFlight }
-			onChange={ value => editPost( { title: value } ) }
-		/>
+		<>
+			<strong className="newspack-newsletters__label">
+				{ __( 'Subject', 'newspack-newsletters' ) }
+			</strong>
+			<TextControl
+				label={ __( 'Subject', 'newspack-newsletters' ) }
+				className="newspack-newsletters__subject-textcontrol"
+				value={ title }
+				disabled={ inFlight }
+				onChange={ value => editPost( { title: value } ) }
+				hideLabelFromVision
+			/>
+		</>
 	);
 
 	const senderEmailClasses = classnames(
@@ -58,7 +69,9 @@ const Sidebar = ( {
 
 	const renderFrom = ( { handleSenderUpdate } ) => (
 		<Fragment>
-			<strong>{ __( 'From', 'newspack-newsletters' ) }</strong>
+			<strong className="newspack-newsletters__label">
+				{ __( 'From', 'newspack-newsletters' ) }
+			</strong>
 			<TextControl
 				label={ __( 'Name', 'newspack-newsletters' ) }
 				className="newspack-newsletters__name-textcontrol"
@@ -66,7 +79,6 @@ const Sidebar = ( {
 				disabled={ inFlight }
 				onChange={ value => {
 					editPost( { meta: { senderName: value } } );
-					setSenderDirty( true );
 				} }
 			/>
 			<TextControl
@@ -77,28 +89,52 @@ const Sidebar = ( {
 				disabled={ inFlight }
 				onChange={ value => {
 					editPost( { meta: { senderEmail: value } } );
-					setSenderDirty( true );
 				} }
 			/>
-			{ senderDirty && (
-				<Button
-					isLink
-					onClick={ () => handleSenderUpdate( { senderName, senderEmail } ) }
-					disabled={ inFlight || ( senderEmail.length ? ! hasValidEmail( senderEmail ) : false ) }
-				>
-					{ __( 'Update Sender', 'newspack-newsletters' ) }
-				</Button>
-			) }
-			<TextareaControl
-				label={ __( 'Preview text', 'newspack-newsletters' ) }
-				className="newspack-newsletters__name-textcontrol newspack-newsletters__name-textcontrol--separated"
-				value={ previewText }
-				disabled={ inFlight }
-				onChange={ value => editPost( { meta: { preview_text: value } } ) }
-			/>
+			<Button
+				isLink
+				onClick={ () => handleSenderUpdate( { senderName, senderEmail } ) }
+				disabled={ inFlight || ( senderEmail.length ? ! hasValidEmail( senderEmail ) : false ) }
+			>
+				{ __( 'Update Sender', 'newspack-newsletters' ) }
+			</Button>
 		</Fragment>
 	);
 
+	const renderPreviewText = () => (
+		<TextareaControl
+			label={ __( 'Preview text', 'newspack-newsletters' ) }
+			className="newspack-newsletters__preview-textcontrol"
+			value={ previewText }
+			disabled={ inFlight }
+			onChange={ value => editPost( { meta: { preview_text: value } } ) }
+		/>
+	);
+
+	if ( false === isConnected ) {
+		return (
+			<Fragment>
+				<p>
+					{ __(
+						'You must authorize your account before publishing your newsletter.',
+						'newspack-newsletters'
+					) }
+				</p>
+				<Button
+					isPrimary
+					disabled={ inFlight }
+					onClick={ () => {
+						const authWindow = window.open( oauthUrl, 'esp_oauth', 'width=500,height=600' );
+						authWindow.opener = { verify: once( onAuthorize ) };
+					} }
+				>
+					{ __( 'Authorize', 'newspack-newsletter' ) }
+				</Button>
+			</Fragment>
+		);
+	}
+
+	// eslint-disable-next-line @wordpress/no-unused-vars-before-return
 	const { ProviderSidebar } = getServiceProvider();
 	return (
 		<Fragment>
@@ -109,16 +145,19 @@ const Sidebar = ( {
 				apiFetch={ apiFetch }
 				renderSubject={ renderSubject }
 				renderFrom={ renderFrom }
+				renderPreviewText={ renderPreviewText }
 				updateMeta={ meta => editPost( { meta } ) }
 			/>
+			<hr />
 			<ToggleControl
-				label={ __( 'Disable ads for this newsletter?', 'newspack-newsletters' ) }
+				label={ __( 'Disable ads for this newsletter', 'newspack-newsletters' ) }
 				className="newspack-newsletters__disable-ads"
 				checked={ disableAds }
 				disabled={ inFlight }
-				help={ __(
-					'If checked, no ads will be inserted into this newsletter’s content.',
-					'newspack-newsletters'
+				help={ sprintf(
+					// Translators: help message for disable ads control.
+					__( 'Ads will%s be inserted into this newsletter’s content.', 'newspack-newsletters' ),
+					disableAds ? __( ' not', 'newspack-newsletters' ) : ''
 				) }
 				onChange={ value => editPost( { meta: { diable_ads: value } } ) }
 			/>

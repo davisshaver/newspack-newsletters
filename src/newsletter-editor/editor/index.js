@@ -1,97 +1,16 @@
 /**
  * External dependencies
  */
-import { pick, omit, get, isEmpty } from 'lodash';
-import mjml2html from 'mjml-browser';
+import { get, isEmpty } from 'lodash';
 
 /**
  * WordPress dependencies
  */
+import { __ } from '@wordpress/i18n';
 import { compose } from '@wordpress/compose';
-import {
-	withDispatch,
-	dispatch as globalDispatch,
-	withSelect,
-	select as globalSelect,
-} from '@wordpress/data';
+import { withDispatch, withSelect } from '@wordpress/data';
 import { createPortal, useEffect, useState } from '@wordpress/element';
 import { registerPlugin } from '@wordpress/plugins';
-import { __ } from '@wordpress/i18n';
-import apiFetch from '@wordpress/api-fetch';
-
-/**
- * Internal dependencies
- */
-import { NEWSLETTER_CPT_SLUG } from '../../utils/consts';
-
-const POST_META_WHITELIST = [
-	'is_public',
-	'preview_text',
-	'diable_ads',
-	'font_body',
-	'font_header',
-	'background_color',
-	'custom_css',
-];
-
-/**
- * Use a middleware to hijack the post update request.
- * When a post is about to be updated, first the email-compliant HTML has
- * to be produced. To do that, MJML (more at mjml.io) is used.
- */
-apiFetch.use( async ( options, next ) => {
-	const { method, path = '', data = {} } = options;
-	if (
-		path.indexOf( window.newspack_newsletters_data.newsletter_cpt ) > 0 &&
-		data.content &&
-		data.id &&
-		( method === 'POST' || method === 'PUT' )
-	) {
-		const emailHTMLMetaName = window.newspack_newsletters_data.email_html_meta;
-
-		// Strip the meta which will be updated explicitly from post update payload.
-		options.data.meta = omit( options.data.meta, [ ...POST_META_WHITELIST, emailHTMLMetaName ] );
-
-		// First, save post meta. It is not saved when saving a draft, so
-		// it's saved here in order for the backend to have access to these.
-		const postMeta = globalSelect( 'core/editor' ).getEditedPostAttribute( 'meta' );
-		await apiFetch( {
-			data: { meta: pick( postMeta, POST_META_WHITELIST ) },
-			method: 'POST',
-			path: `/wp/v2/${ NEWSLETTER_CPT_SLUG }/${ data.id }`,
-		} );
-
-		// Then, send the content over to the server to convert the post content
-		// into MJML markup.
-		return apiFetch( {
-			path: `/newspack-newsletters/v1/post-mjml`,
-			method: 'POST',
-			data: {
-				id: data.id,
-				title: data.title,
-				content: data.content,
-			},
-		} )
-			.then( ( { mjml } ) => {
-				// Once received MJML markup, convert it to email-compliant HTML
-				// and save as post meta for later retrieval.
-				const { html } = mjml2html( mjml );
-				return apiFetch( {
-					data: { meta: { [ emailHTMLMetaName ]: html } },
-					method: 'POST',
-					path: `/wp/v2/${ NEWSLETTER_CPT_SLUG }/${ data.id }`,
-				} );
-			} )
-			.then( () => next( options ) ) // Proceed with the post update request.
-			.catch( error => {
-				// In case of an error, display notice and proceed with the post update request.
-				const { createErrorNotice } = globalDispatch( 'core/notices' );
-				createErrorNotice( error.message || __( 'Something went wrong', 'newspack-newsletters' ) );
-				return next( options );
-			} );
-	}
-	return next( options );
-} );
 
 /**
  * Internal dependencies
@@ -117,7 +36,7 @@ const Editor = compose( [
 		const { getSettings } = select( 'core/block-editor' );
 		const meta = getEditedPostAttribute( 'meta' );
 		const status = getCurrentPostAttribute( 'status' );
-		const sentDate = getCurrentPostAttribute( 'date' );
+		const sent = getCurrentPostAttribute( 'meta' ).newsletter_sent;
 		const settings = getSettings();
 		const experimentalSettingsColors = get( settings, [
 			'__experimentalFeatures',
@@ -140,30 +59,37 @@ const Editor = compose( [
 				{}
 			),
 			status,
-			sentDate,
+			sent,
 			isPublic: meta.is_public,
+			html: meta[ window.newspack_email_editor_data.email_html_meta ],
 		};
 	} ),
 	withDispatch( dispatch => {
-		const { lockPostAutosaving, lockPostSaving, unlockPostSaving, editPost } = dispatch(
-			'core/editor'
-		);
-		const { createNotice } = dispatch( 'core/notices' );
-		return { lockPostAutosaving, lockPostSaving, unlockPostSaving, editPost, createNotice };
+		const { lockPostAutosaving, lockPostSaving, unlockPostSaving, editPost } =
+			dispatch( 'core/editor' );
+		const { createNotice, removeNotice } = dispatch( 'core/notices' );
+		return {
+			lockPostAutosaving,
+			lockPostSaving,
+			unlockPostSaving,
+			editPost,
+			createNotice,
+			removeNotice,
+		};
 	} ),
 ] )( props => {
 	const [ publishEl ] = useState( document.createElement( 'div' ) );
 	// Create alternate publish button
-	useEffect(() => {
+	useEffect( () => {
 		const publishButton = document.getElementsByClassName(
 			'editor-post-publish-button__button'
 		)[ 0 ];
 		publishButton.parentNode.insertBefore( publishEl, publishButton );
-	}, []);
+	}, [] );
 	const { getFetchDataConfig } = getServiceProvider();
 
 	// Set color palette option.
-	useEffect(() => {
+	useEffect( () => {
 		if ( isEmpty( props.colorPalette ) ) {
 			return;
 		}
@@ -172,33 +98,39 @@ const Editor = compose( [
 			data: props.colorPalette,
 			method: 'POST',
 		} );
-	}, [ JSON.stringify( props.colorPalette ) ]);
+	}, [ JSON.stringify( props.colorPalette ) ] );
 
 	// Fetch data from service provider.
-	useEffect(() => {
+	useEffect( () => {
 		if ( ! props.isCleanNewPost && ! props.isPublishingOrSavingPost ) {
+			// Exit if provider does not support fetching data.
+			if ( ! getFetchDataConfig ) {
+				return;
+			}
 			const params = getFetchDataConfig( { postId: props.postId } );
-			if ( 0 === params.path.indexOf( '/newspack-newsletters/v1/example/' ) ) {
+			// Exit if data config is example or does not provide path
+			if ( ! params?.path || 0 === params.path.indexOf( '/newspack-newsletters/v1/example/' ) ) {
 				return;
 			}
 			props.apiFetchWithErrorHandling( params ).then( result => {
 				props.editPost( getEditPostPayload( result ) );
 			} );
 		}
-	}, [ props.isPublishingOrSavingPost ]);
+	}, [ props.isPublishingOrSavingPost ] );
 
 	// Lock or unlock post publishing.
-	useEffect(() => {
+	useEffect( () => {
 		if ( props.isReady ) {
 			props.unlockPostSaving( 'newspack-newsletters-post-lock' );
 		} else {
 			props.lockPostSaving( 'newspack-newsletters-post-lock' );
 		}
-	}, [ props.isReady ]);
+	}, [ props.isReady ] );
 
-	useEffect(() => {
-		if ( 'publish' === props.status && ! props.isPublishingOrSavingPost ) {
-			const dateTime = props.sentDate ? new Date( props.sentDate ).toLocaleString() : '';
+	useEffect( () => {
+		if ( props.sent ) {
+			const sentDate = 0 < props.sent ? new Date( props.sent * 1000 ) : null;
+			const dateTime = sentDate ? sentDate.toLocaleString() : '';
 
 			// Lock autosaving after a newsletter is sent.
 			props.lockPostAutosaving();
@@ -208,9 +140,26 @@ const Editor = compose( [
 				isDismissible: false,
 			} );
 		}
-	}, [ props.status ]);
+	}, [ props.sent ] );
 
-	useEffect(() => {
+	// Notify if email content is larger than ~100kb.
+	useEffect( () => {
+		const noticeId = 'newspack-newsletters-email-content-too-large';
+		const message = __(
+			'Email content is too long and may get clipped by email clients.',
+			'newspack-newsletters'
+		);
+		if ( props.html.length > 100000 ) {
+			props.createNotice( 'warning', message, {
+				id: noticeId,
+				isDismissible: false,
+			} );
+		} else {
+			props.removeNotice( noticeId );
+		}
+	}, [ props.html ] );
+
+	useEffect( () => {
 		// Hide post title if the newsletter is a not a public post.
 		const editorTitleEl = document.querySelector( '.editor-post-title' );
 		if ( editorTitleEl ) {
@@ -218,7 +167,7 @@ const Editor = compose( [
 				'newspack-newsletters-post-title-hidden'
 			);
 		}
-	}, [ props.isPublic ]);
+	}, [ props.isPublic ] );
 
 	return createPortal( <SendButton />, publishEl );
 } );

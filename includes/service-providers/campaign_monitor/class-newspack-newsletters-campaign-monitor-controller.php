@@ -18,8 +18,105 @@ class Newspack_Newsletters_Campaign_Monitor_Controller extends Newspack_Newslett
 	 */
 	public function __construct( $campaign_monitor ) {
 		$this->service_provider = $campaign_monitor;
+		add_action( 'init', [ __CLASS__, 'register_meta' ] );
 		add_action( 'rest_api_init', [ $this, 'register_routes' ] );
 		parent::__construct( $campaign_monitor );
+	}
+
+	/**
+	 * Register custom fields.
+	 */
+	public static function register_meta() {
+		\register_meta(
+			'post',
+			'cm_list_id',
+			[
+				'object_subtype' => Newspack_Newsletters::NEWSPACK_NEWSLETTERS_CPT,
+				'show_in_rest'   => [
+					'schema' => [
+						'context' => [ 'edit' ],
+					],
+				],
+				'type'           => 'string',
+				'single'         => true,
+				'auth_callback'  => '__return_true',
+			]
+		);
+		\register_meta(
+			'post',
+			'cm_segment_id',
+			[
+				'object_subtype' => Newspack_Newsletters::NEWSPACK_NEWSLETTERS_CPT,
+				'show_in_rest'   => [
+					'schema' => [
+						'context' => [ 'edit' ],
+					],
+				],
+				'type'           => 'string',
+				'single'         => true,
+				'auth_callback'  => '__return_true',
+			]
+		);
+		\register_meta(
+			'post',
+			'cm_send_mode',
+			[
+				'object_subtype' => Newspack_Newsletters::NEWSPACK_NEWSLETTERS_CPT,
+				'show_in_rest'   => [
+					'schema' => [
+						'context' => [ 'edit' ],
+					],
+				],
+				'type'           => 'string',
+				'single'         => true,
+				'auth_callback'  => '__return_true',
+			]
+		);
+		\register_meta(
+			'post',
+			'cm_from_name',
+			[
+				'object_subtype' => Newspack_Newsletters::NEWSPACK_NEWSLETTERS_CPT,
+				'show_in_rest'   => [
+					'schema' => [
+						'context' => [ 'edit' ],
+					],
+				],
+				'type'           => 'string',
+				'single'         => true,
+				'auth_callback'  => '__return_true',
+			]
+		);
+		\register_meta(
+			'post',
+			'cm_from_email',
+			[
+				'object_subtype' => Newspack_Newsletters::NEWSPACK_NEWSLETTERS_CPT,
+				'show_in_rest'   => [
+					'schema' => [
+						'context' => [ 'edit' ],
+					],
+				],
+				'type'           => 'string',
+				'single'         => true,
+				'auth_callback'  => '__return_true',
+			]
+		);
+		\register_meta(
+			'post',
+			'cm_preview_text',
+			[
+				'object_subtype' => Newspack_Newsletters::NEWSPACK_NEWSLETTERS_CPT,
+				'show_in_rest'   => [
+					'schema' => [
+						'context' => [ 'edit' ],
+					],
+				],
+				'type'           => 'string',
+				'single'         => true,
+				'auth_callback'  => '__return_true',
+			]
+		);
 	}
 
 	/**
@@ -83,7 +180,7 @@ class Newspack_Newsletters_Campaign_Monitor_Controller extends Newspack_Newslett
 	 */
 	public function api_retrieve( $request ) {
 		$response = $this->service_provider->retrieve( $request['id'], true );
-		return \rest_ensure_response( $response );
+		return self::get_api_response( $response );
 	}
 
 	/**
@@ -97,11 +194,12 @@ class Newspack_Newsletters_Campaign_Monitor_Controller extends Newspack_Newslett
 		foreach ( $emails as &$email ) {
 			$email = sanitize_email( trim( $email ) );
 		}
+		$this->update_user_test_emails( $emails );
 		$response = $this->service_provider->test(
 			$request['id'],
 			$emails
 		);
-		return \rest_ensure_response( $response );
+		return self::get_api_response( $response );
 	}
 
 	/**

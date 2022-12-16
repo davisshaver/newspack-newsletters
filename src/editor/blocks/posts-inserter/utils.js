@@ -8,6 +8,7 @@ import { omit } from 'lodash';
  */
 import { __, _x } from '@wordpress/i18n';
 import { createBlock, getBlockContent } from '@wordpress/blocks';
+// eslint-disable-next-line @wordpress/no-unsafe-wp-apis
 import { dateI18n, __experimentalGetSettings } from '@wordpress/date';
 
 /**
@@ -17,10 +18,9 @@ import { POSTS_INSERTER_BLOCK_NAME } from './consts';
 
 const assignFontSize = ( fontSize, attributes ) => {
 	if ( typeof fontSize === 'number' ) {
-		attributes.style = { ...( attributes.style || {} ), typography: { fontSize } };
-	} else if ( typeof fontSize === 'string' ) {
-		attributes.fontSize = fontSize;
+		fontSize = fontSize + 'px';
 	}
+	attributes.style = { ...( attributes.style || {} ), typography: { fontSize } };
 	return attributes;
 };
 
@@ -43,6 +43,16 @@ const getDateBlockTemplate = ( post, { textFontSize, textColor } ) => {
 			style: { color: { text: textColor } },
 		} ),
 	];
+};
+
+const getSubtitleBlockTemplate = ( post, { subHeadingFontSize, subHeadingColor } ) => {
+	const subtitle = post?.meta?.newspack_post_subtitle || '';
+	const attributes = {
+		level: 4,
+		content: subtitle.trim(),
+		style: { color: { text: subHeadingColor } },
+	};
+	return [ 'core/heading', assignFontSize( subHeadingFontSize, attributes ) ];
 };
 
 const getExcerptBlockTemplate = ( post, { excerptLength, textFontSize, textColor } ) => {
@@ -108,6 +118,9 @@ const getAuthorBlockTemplate = ( post, { textFontSize, textColor } ) => {
 const createBlockTemplatesForSinglePost = ( post, attributes ) => {
 	const postContentBlocks = [ getHeadingBlockTemplate( post, attributes ) ];
 
+	if ( attributes.displayPostSubtitle && post.meta?.newspack_post_subtitle ) {
+		postContentBlocks.push( getSubtitleBlockTemplate( post, attributes ) );
+	}
 	if ( attributes.displayAuthor ) {
 		const author = getAuthorBlockTemplate( post, attributes );
 
@@ -138,8 +151,34 @@ const createBlockTemplatesForSinglePost = ( post, attributes ) => {
 				...( alignCenter ? { align: 'center' } : {} ),
 			},
 		];
-		const imageColumnBlock = [ 'core/column', {}, [ getImageBlock() ] ];
-		const postContentColumnBlock = [ 'core/column', {}, postContentBlocks ];
+
+		let imageColumnBlockSize = '50%';
+		let postContentColumnBlockSize = '50%';
+
+		if ( attributes.featuredImageSize ) {
+			switch ( attributes.featuredImageSize ) {
+				case 'small':
+					imageColumnBlockSize = '25%';
+					postContentColumnBlockSize = '75%';
+					break;
+				case 'medium':
+					imageColumnBlockSize = '33.33%';
+					postContentColumnBlockSize = '66.66%';
+					break;
+			}
+		}
+
+		const imageColumnBlock = [
+			'core/column',
+			{ width: imageColumnBlockSize },
+			[ getImageBlock() ],
+		];
+		const postContentColumnBlock = [
+			'core/column',
+			{ width: postContentColumnBlockSize },
+			postContentBlocks,
+		];
+
 		switch ( attributes.featuredImageAlignment ) {
 			case 'left':
 				return [ [ 'core/columns', {}, [ imageColumnBlock, postContentColumnBlock ] ] ];

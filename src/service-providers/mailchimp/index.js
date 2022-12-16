@@ -13,7 +13,6 @@ import { find } from 'lodash';
  * Internal dependencies
  */
 import ProviderSidebar from './ProviderSidebar';
-import './style.scss';
 
 const validateNewsletter = ( { campaign } ) => {
 	const { recipients, settings, status } = campaign || {};
@@ -52,7 +51,7 @@ const renderPreSendInfo = newsletterData => {
 	}
 	let listData;
 	if ( newsletterData.campaign && newsletterData.lists ) {
-		const lists = newsletterData.lists?.lists || [];
+		const lists = newsletterData.lists || [];
 		const list = find( lists, [ 'id', newsletterData.campaign.recipients.list_id ] );
 		if ( list ) {
 			listData = {
@@ -68,7 +67,7 @@ const renderPreSendInfo = newsletterData => {
 
 	return (
 		<p>
-			{ __( "You're about to send a newsletter to:", 'newspack-newsletters' ) }
+			{ __( "You're sending a newsletter to:", 'newspack-newsletters' ) }
 			<br />
 			<strong>{ listData.name }</strong>
 			<br />
@@ -80,6 +79,7 @@ const renderPreSendInfo = newsletterData => {
 			) }
 			<strong>
 				{ sprintf(
+					// Translators: subscriber count help message.
 					_n( '%d subscriber', '%d subscribers', listData.subscribers, 'newspack-newsletters' ),
 					listData.subscribers
 				) }

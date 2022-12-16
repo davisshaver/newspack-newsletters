@@ -1,10 +1,10 @@
-@import '~@wordpress/base-styles/colors';
+@use '~@wordpress/base-styles/colors' as wp-colors;
 
 .newspack-newsletters {
 	&__editor-block {
 		&__warning {
 			display: block;
-			color: #191e23;
+			color: wp-colors.$gray-900;
 			ul {
 				margin: 0 !important;
 			}
@@ -20,16 +20,6 @@
 		}
 	}
 
-	&__name-textcontrol {
-		margin-top: 8px;
-		&--separated {
-			margin-top: 14px;
-			padding-top: 8px;
-			border-top: 1px solid $light-gray-500;
-		}
-	}
-
-	&__subject-textcontrol,
 	&__to-selectcontrol,
 	&__sendmode-radiocontrol {
 		.components-base-control__label {
@@ -52,11 +42,13 @@
 	}
 
 	&__error input.components-text-control__input {
-		border-color: $alert-red;
+		border-color: wp-colors.$alert-red;
 	}
 
-	&__disable-ads {
-		margin-top: 2em;
+	&__label {
+		display: block;
+		margin-bottom: 8px;
+		text-transform: uppercase;
 	}
 }
 

@@ -18,10 +18,7 @@ import { get } from 'lodash';
  */
 import { getServiceProvider } from '../../service-providers';
 import './style.scss';
-import { NEWSLETTER_AD_CPT_SLUG, NEWSLETTER_CPT_SLUG } from '../../utils/consts';
-import { isAdActive } from '../../ads-admin/utils';
-
-const { renderPreSendInfo } = getServiceProvider();
+import { NEWSLETTER_AD_CPT_SLUG } from '../../utils/consts';
 
 export default compose( [
 	withDispatch( dispatch => {
@@ -31,6 +28,7 @@ export default compose( [
 	withSelect( ( select, { forceIsDirty } ) => {
 		const {
 			getCurrentPost,
+			getCurrentPostAttribute,
 			getEditedPostAttribute,
 			getEditedPostVisibility,
 			isEditedPostPublishable,
@@ -48,7 +46,9 @@ export default compose( [
 			hasPublishAction: get( getCurrentPost(), [ '_links', 'wp:action-publish' ], false ),
 			visibility: getEditedPostVisibility(),
 			meta: getEditedPostAttribute( 'meta' ),
+			sent: getCurrentPostAttribute( 'meta' ).newsletter_sent,
 			isPublished: isCurrentPostPublished(),
+			postDate: getEditedPostAttribute( 'date' ),
 		};
 	} ),
 ] )(
@@ -63,16 +63,24 @@ export default compose( [
 		hasPublishAction,
 		visibility,
 		meta,
+		sent,
 		isPublished,
+		postDate,
 	} ) => {
 		const { newsletterData = {}, newsletterValidationErrors = [], is_public } = meta;
+
+		const {
+			name: serviceProviderName,
+			renderPreSendInfo,
+			renderPostUpdateInfo,
+		} = getServiceProvider();
 
 		const isButtonEnabled =
 			( isPublishable || isEditedPostBeingScheduled ) &&
 			isSaveable &&
 			! isPublished &&
 			! isSaving &&
-			newsletterData.campaign &&
+			( newsletterData.campaign || 'manual' === serviceProviderName ) &&
 			0 === newsletterValidationErrors.length;
 		let label;
 		if ( isPublished ) {
@@ -93,6 +101,15 @@ export default compose( [
 				: __( 'Send', 'newspack-newsletters' );
 		}
 
+		let updateLabel;
+		if ( isSaving ) {
+			updateLabel = __( 'Updating…', 'newspack-newsletters' );
+		} else if ( 'manual' === serviceProviderName ) {
+			updateLabel = __( 'Update and copy HTML', 'newspack-newsletters' );
+		} else {
+			updateLabel = __( 'Update', 'newspack-newsletters' );
+		}
+
 		let publishStatus;
 		if ( ! hasPublishAction ) {
 			publishStatus = 'pending';
@@ -104,27 +121,55 @@ export default compose( [
 			publishStatus = 'publish';
 		}
 
+		const [ adLabel, setAdLabel ] = useState();
 		const [ adsWarning, setAdsWarning ] = useState();
-		useEffect(() => {
+		const [ activeAdManageUrl, setActiveAdManageUrl ] = useState();
+		const [ activeAdManageUrlRel, setActiveAdManageUrlRel ] = useState();
+		const [ activeAdManageTarget, setActiveAdManageTarget ] = useState();
+
+		let modalSubmitLabel;
+		if ( 'manual' === serviceProviderName ) {
+			modalSubmitLabel = is_public
+				? __( 'Mark as sent and publish', 'newspack-newsletters' )
+				: __( 'Mark as sent', 'newspack-newsletters' );
+		} else {
+			modalSubmitLabel = label;
+		}
+
+		useEffect( () => {
 			apiFetch( {
-				path: `/wp/v2/${ NEWSLETTER_AD_CPT_SLUG }`,
+				path: `/wp/v2/${ NEWSLETTER_AD_CPT_SLUG }/count/?date=${ postDate }`,
 			} ).then( response => {
-				const activeAds = response.filter( isAdActive );
-				if ( activeAds.length ) {
+				const {
+					count: countOfActiveAds,
+					label: adManageLabel,
+					manageUrl,
+					manageUrlRel,
+					manageUrlTarget,
+				} = response;
+
+				setActiveAdManageUrl( manageUrl );
+				setAdLabel( adManageLabel );
+				setActiveAdManageUrlRel( manageUrlRel );
+				setActiveAdManageTarget( manageUrlTarget );
+
+				if ( countOfActiveAds > 0 ) {
 					setAdsWarning(
 						sprintf(
+							// Translators: help message showing number of active ads.
 							_n(
-								'There is %d active ad.',
-								'There are %d active ads.',
-								activeAds.length,
+								'There is %1$d active %2$s.',
+								'There are %1$d active %2$ss.',
+								countOfActiveAds,
 								'newspack-newsletters'
 							),
-							activeAds.length
+							countOfActiveAds,
+							adManageLabel
 						)
 					);
 				}
 			} );
-		}, []);
+		}, [] );
 
 		const triggerCampaignSend = () => {
 			editPost( { status: publishStatus } );
@@ -134,20 +179,41 @@ export default compose( [
 		const [ modalVisible, setModalVisible ] = useState( false );
 
 		// For sent newsletters, display the generic button text.
-		if ( isPublished ) {
+		if ( isPublished || sent ) {
 			return (
-				<Button
-					className="editor-post-publish-button"
-					isBusy={ isSaving }
-					isPrimary
-					isLarge
-					disabled={ isSaving }
-					onClick={ savePost }
-				>
-					{ isSaving
-						? __( 'Updating...', 'newspack-newsletters' )
-						: __( 'Update', 'newspack-newsletters' ) }
-				</Button>
+				<Fragment>
+					<Button
+						className="editor-post-publish-button"
+						isBusy={ isSaving }
+						isPrimary
+						disabled={ isSaving }
+						onClick={ async () => {
+							await savePost();
+							if ( renderPostUpdateInfo ) setModalVisible( true );
+						} }
+					>
+						{ updateLabel }
+					</Button>
+					{ modalVisible && renderPostUpdateInfo && (
+						<Modal
+							className="newspack-newsletters__modal"
+							title={ __( 'Newsletter HTML', 'newspack-newsletters' ) }
+							onRequestClose={ () => setModalVisible( false ) }
+						>
+							{ adsWarning ? (
+								<Notice isDismissible={ false }>
+									{ adsWarning }{ ' ' }
+									<a
+										href={ `/wp-admin/edit.php?post_type=${ NEWSLETTER_AD_CPT_SLUG }&page=newspack-newsletters-ads-admin` }
+									>
+										{ __( 'Manage ads', 'newspack-newsletters' ) }
+									</a>
+								</Notice>
+							) : null }
+							{ renderPostUpdateInfo( newsletterData ) }
+						</Modal>
+					) }
+				</Fragment>
 			);
 		}
 
@@ -157,7 +223,6 @@ export default compose( [
 					className="editor-post-publish-button"
 					isBusy={ isSaving && 'publish' === status }
 					isPrimary
-					isLarge
 					onClick={ async () => {
 						await savePost();
 						setModalVisible( true );
@@ -174,11 +239,16 @@ export default compose( [
 					>
 						{ adsWarning ? (
 							<Notice isDismissible={ false }>
-								{ adsWarning }{' '}
-								<a
-									href={ `/wp-admin/edit.php?post_type=${ NEWSLETTER_CPT_SLUG }&page=newspack-newsletters-ads-admin` }
+								{ adsWarning }{ ' ' }
+								<a // eslint-disable-line react/jsx-no-target-blank
+									href={ activeAdManageUrl }
+									rel={ activeAdManageUrlRel }
+									target={ activeAdManageTarget }
 								>
-									{ __( 'Manage ads', 'newspack-newsletters' ) }
+									{
+										// Translators: "manage ad" message.
+										sprintf( __( 'Manage %ss.', 'newspack-newsletters' ), adLabel )
+									}
 								</a>
 							</Notice>
 						) : null }
@@ -196,19 +266,21 @@ export default compose( [
 								</ul>
 							</Notice>
 						) : null }
-						<Button
-							isPrimary
-							disabled={ newsletterValidationErrors.length > 0 }
-							onClick={ () => {
-								triggerCampaignSend();
-								setModalVisible( false );
-							} }
-						>
-							{ __( 'Send', 'newspack-newsletters' ) }
-						</Button>
-						<Button isSecondary onClick={ () => setModalVisible( false ) }>
-							{ __( 'Cancel', 'newspack-newsletters' ) }
-						</Button>
+						<div className="modal-buttons">
+							<Button isSecondary onClick={ () => setModalVisible( false ) }>
+								{ __( 'Cancel', 'newspack-newsletters' ) }
+							</Button>
+							<Button
+								isPrimary
+								disabled={ newsletterValidationErrors.length > 0 }
+								onClick={ () => {
+									triggerCampaignSend();
+									setModalVisible( false );
+								} }
+							>
+								{ modalSubmitLabel }
+							</Button>
+						</div>
 					</Modal>
 				) }
 			</Fragment>

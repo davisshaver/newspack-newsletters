@@ -1,10 +1,10 @@
 {
-  "name": "newspack-newsletters/posts-inserter",
-  "category": "widgets",
-  "supports": [
-    "align"
-  ],
-  "attributes": {
+	"name": "newspack-newsletters/posts-inserter",
+	"category": "widgets",
+	"supports": [
+		"align"
+	],
+	"attributes": {
 		"areBlocksInserted": {
 			"type": "boolean",
 			"default": false
@@ -12,6 +12,18 @@
 		"postsToShow": {
 			"type": "number",
 			"default": 3
+		},
+		"preventDeduplication": {
+			"type": "boolean",
+			"default": false
+		},
+		"displayPostSubtitle": {
+			"type": "boolean",
+			"default": false
+		},
+		"displayAuthor": {
+			"type": "boolean",
+			"default": false
 		},
 		"displayPostExcerpt": {
 			"type": "boolean",
@@ -41,6 +53,10 @@
 			"type": "string",
 			"default": "left"
 		},
+		"featuredImageSize": {
+			"type": "string",
+			"default": "large"
+		},
 		"isDisplayingSpecificPosts": {
 			"type": "boolean",
 			"default": false
@@ -50,20 +66,26 @@
 			"default": []
 		},
 		"textFontSize": {
-			"type": "number",
-			"default": 16
+			"type": "string"
 		},
 		"headingFontSize": {
-			"type": "number",
-			"default": 25
+			"type": "string"
+		},
+		"subHeadingFontSize": {
+			"type": "string"
 		},
 		"textColor": {
-			"type": "string",
-			"default": "#000"
+			"type": "string"
 		},
 		"headingColor": {
+			"type": "string"
+		},
+		"subHeadingColor": {
+			"type": "string"
+		},
+		"postType": {
 			"type": "string",
-			"default": "#000"
+			"default": "post"
 		},
 		"tags": {
 			"type": "array",
@@ -81,5 +103,5 @@
 			"type": "array",
 			"default": []
 		}
-  }
+	}
 }

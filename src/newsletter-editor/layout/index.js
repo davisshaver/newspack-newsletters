@@ -28,7 +28,7 @@ export default compose( [
 		const { getEditedPostAttribute, isEditedPostEmpty, getCurrentPostId } = select( 'core/editor' );
 		const { getBlocks } = select( 'core/block-editor' );
 		const meta = getEditedPostAttribute( 'meta' );
-		const { template_id: layoutId, background_color, font_body, font_header } = meta;
+		const { template_id: layoutId, background_color, font_body, font_header, custom_css } = meta;
 		return {
 			layoutId,
 			postTitle: getEditedPostAttribute( 'title' ),
@@ -39,6 +39,7 @@ export default compose( [
 				background_color,
 				font_body,
 				font_header,
+				custom_css,
 			},
 		};
 	} ),
@@ -79,13 +80,13 @@ export default compose( [
 
 		const [ usedLayout, setUsedLayout ] = useState( {} );
 
-		useEffect(() => {
+		useEffect( () => {
 			setUsedLayout( find( layouts, { ID: layoutId } ) || {} );
-		}, [ layouts.length ]);
+		}, [ layouts.length ] );
 
-		const blockPreview = useMemo(() => {
+		const blockPreview = useMemo( () => {
 			return usedLayout.post_content ? parse( usedLayout.post_content ) : null;
-		}, [ usedLayout ]);
+		}, [ usedLayout ] );
 
 		const clearPost = () => {
 			const clientIds = postBlocks.map( ( { clientId } ) => clientId );
@@ -107,6 +108,7 @@ export default compose( [
 			// The shape of this data is different than the API response for CPT
 			setUsedLayout( {
 				...updatedLayout,
+				ID: updatedLayout.id,
 				post_content: updatedLayout.content.raw,
 				post_title: updatedLayout.title.raw,
 				post_type: LAYOUT_CPT_SLUG,
@@ -160,9 +162,10 @@ export default compose( [
 						<div className="newspack-newsletters-layouts__item">
 							<div className="newspack-newsletters-layouts__item-preview">
 								<NewsletterPreview
+									layoutId={ layoutId }
 									meta={ usedLayout.meta }
 									blocks={ setPreventDeduplicationForPostsInserter( blockPreview ) }
-									viewportWidth={ 600 }
+									viewportWidth={ 848 }
 								/>
 							</div>
 							<div className="newspack-newsletters-layouts__item-label">
@@ -171,31 +174,33 @@ export default compose( [
 						</div>
 					</div>
 				) }
-				<div className="newspack-newsletters-buttons-group newspack-newsletters-buttons-group--spaced">
+				<div className="newspack-newsletters-buttons-group">
 					<Button
-						isPrimary
+						variant="secondary"
 						disabled={ isEditedPostEmpty || isSavingLayout }
 						onClick={ () => setIsManageModalVisible( true ) }
 					>
-						{ __( 'Save new layout', 'newspack-newsletters' ) }
+						{ __( 'Save New Layout', 'newspack-newsletters' ) }
 					</Button>
 
 					{ isUsingCustomLayout && (
 						<Button
-							isSecondary
+							variant="tertiary"
 							disabled={ isPostContentSameAsLayout || isSavingLayout }
 							onClick={ handeLayoutUpdate }
 						>
-							{ __( 'Update layout', 'newspack-newsletters' ) }
+							{ __( 'Update Layout', 'newspack-newsletters' ) }
 						</Button>
 					) }
+
+					<Button
+						variant="secondary"
+						isDestructive
+						onClick={ () => setWarningModalVisible( true ) }
+					>
+						{ __( 'Reset Layout', 'newspack-newsletters' ) }
+					</Button>
 				</div>
-
-				<br />
-
-				<Button isSecondary isLink isDestructive onClick={ () => setWarningModalVisible( true ) }>
-					{ __( 'Reset newsletter layout', 'newspack-newsletters' ) }
-				</Button>
 
 				{ isManageModalVisible && (
 					<Modal
