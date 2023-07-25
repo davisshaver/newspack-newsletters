@@ -91,9 +91,12 @@ final class Newspack_Newsletters_Editor {
 
 	/**
 	 * Is the editor editing an email?
+	 *
+	 * @param int $post_id Optional post ID to check.
 	 */
-	private static function is_editing_email() {
-		return in_array( get_post_type(), self::get_email_editor_cpts() );
+	private static function is_editing_email( $post_id = null ) {
+		$post_id = empty( $post_id ) ? get_the_ID() : $post_id;
+		return in_array( get_post_type( $post_id ), self::get_email_editor_cpts() );
 	}
 
 	/**
@@ -193,6 +196,13 @@ final class Newspack_Newsletters_Editor {
 	 * Define Editor Font Sizes.
 	 */
 	public static function newspack_font_sizes() {
+		global $pagenow;
+		$email_editor_cpts = self::get_email_editor_cpts();
+		$is_editing_email  = 'post.php' === $pagenow && isset( $_GET['post'] ) && self::is_editing_email( absint( $_GET['post'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$is_creating_email = 'post-new.php' === $pagenow && isset( $_GET['post_type'] ) && in_array( $_GET['post_type'], $email_editor_cpts ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! $is_editing_email && ! $is_creating_email ) {
+			return;
+		}
 		add_theme_support(
 			'editor-font-sizes',
 			[
@@ -202,9 +212,9 @@ final class Newspack_Newsletters_Editor {
 					'slug' => 'small',
 				],
 				[
-					'name' => _x( 'Normal', 'font size name', 'newspack-newsletters' ),
+					'name' => _x( 'Medium', 'font size name', 'newspack-newsletters' ),
 					'size' => 16,
-					'slug' => 'normal',
+					'slug' => 'medium',
 				],
 				[
 					'name' => _x( 'Large', 'font size name', 'newspack-newsletters' ),
@@ -283,12 +293,18 @@ final class Newspack_Newsletters_Editor {
 			// Remove the Ads CPT - it does not need MJML handling since ads
 			// will be injected into email content before it's converted to MJML.
 			$mjml_handling_post_types = array_values( array_diff( self::get_email_editor_cpts(), [ Newspack_Newsletters_Ads::NEWSPACK_NEWSLETTERS_ADS_CPT ] ) );
+			$provider                 = Newspack_Newsletters::get_service_provider();
+			$conditional_tag_support  = false;
+			if ( $provider ) {
+				$conditional_tag_support = $provider::get_conditional_tag_support();
+			}
 			wp_localize_script(
 				'newspack-newsletters-editor',
 				'newspack_email_editor_data',
 				[
 					'email_html_meta'          => Newspack_Newsletters::EMAIL_HTML_META,
 					'mjml_handling_post_types' => $mjml_handling_post_types,
+					'conditional_tag_support'  => $conditional_tag_support,
 				]
 			);
 

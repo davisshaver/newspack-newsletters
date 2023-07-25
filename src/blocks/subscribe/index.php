@@ -37,7 +37,7 @@ function enqueue_scripts() {
 	);
 
 	$use_captcha  = method_exists( '\Newspack\Recaptcha', 'can_use_captcha' ) && \Newspack\Recaptcha::can_use_captcha();
-	$dependencies = [ 'wp-polyfill', 'wp-i18n' ];
+	$dependencies = [];
 	if ( $use_captcha ) {
 		$dependencies[] = \Newspack\Recaptcha::SCRIPT_HANDLE;
 	}
@@ -49,10 +49,17 @@ function enqueue_scripts() {
 		filemtime( NEWSPACK_NEWSLETTERS_PLUGIN_FILE . 'dist/subscribeBlock.js' ),
 		true
 	);
+	\wp_localize_script(
+		$handle,
+		'newspack_newsletters_subscribe_block',
+		[
+			'recaptcha_error' => __( 'Error loading the reCaptcha library.', 'newspack-newsletters' ),
+			'invalid_email'   => __( 'Please enter a valid email address', 'newspack-newsletter' ),
+		]
+	);
 	\wp_script_add_data( $handle, 'async', true );
 	\wp_script_add_data( $handle, 'amp-plus', true );
 }
-add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\enqueue_scripts' );
 
 /**
  * Generate a unique ID for each subscription form.
@@ -84,11 +91,16 @@ function render_block( $attrs ) {
 	$email           = '';
 	$lists           = array_keys( $list_config );
 	$list_map        = array_flip( $lists );
-	$available_lists = array_values( array_intersect( $lists, $attrs['lists'] ) );
+	$available_lists = array_values( array_intersect( $attrs['lists'], $lists ) );
 
 	if ( empty( $available_lists ) ) {
 		$available_lists = [ $lists[0] ];
 	}
+
+	$provider = \Newspack_Newsletters::get_service_provider();
+
+	// Enqueue scripts.
+	enqueue_scripts();
 
 	if ( \is_user_logged_in() ) {
 		$email = \wp_get_current_user()->user_email;
@@ -115,15 +127,29 @@ function render_block( $attrs ) {
 			$list_map = array_flip( array_map( 'sanitize_text_field', $_REQUEST['lists'] ) );
 		}
 	}
+
+	$display_input_label = ! empty( $attrs['displayInputLabels'] );
+	$email_label         = $display_input_label ? $attrs['emailLabel'] : '';
+	$input_id            = sprintf( 'newspack-newsletters-subscribe-block-input-%s', $block_id );
 	// phpcs:enable
 	ob_start();
 	?>
-	<div class="newspack-newsletters-subscribe <?php echo esc_attr( get_block_classes( $attrs ) ); ?>">
-		<?php if ( $subscribed ) : ?>
-			<p class="message"><?php echo \esc_html( $message ); ?></p>
-		<?php else : ?>
+	<div
+		class="newspack-newsletters-subscribe <?php echo esc_attr( get_block_classes( $attrs ) ); ?>"
+		data-success-message="<?php echo \esc_attr( $attrs['successMessage'] ); ?>"
+		<?php echo $subscribed ? 'data-status="200"' : ''; ?>
+	>
+		<?php if ( ! $subscribed ) : ?>
 			<form id="<?php echo esc_attr( get_form_id() ); ?>">
 				<?php \wp_nonce_field( FORM_ACTION, FORM_ACTION ); ?>
+				<?php
+				/**
+				 * Action to add custom fields before the form fields of the Newsletter Subscription block.
+				 *
+				 * @param array $attrs Block attributes.
+				 */
+				do_action( 'newspack_newsletters_subscribe_block_before_form_fields', $attrs );
+				?>
 				<?php if ( 1 < count( $available_lists ) ) : ?>
 					<div class="newspack-newsletters-lists">
 						<ul>
@@ -164,22 +190,36 @@ function render_block( $attrs ) {
 				<?php endif; ?>
 				<?php
 				if ( $attrs['displayNameField'] ) :
+					$name_label            = $attrs['nameLabel'];
 					$name_placeholder      = $attrs['namePlaceholder'];
+					$last_name_label       = $attrs['lastNameLabel'];
 					$last_name_placeholder = $attrs['lastNamePlaceholder'];
 					$display_last_name     = $attrs['displayLastNameField'];
-					if ( empty( $name_placeholder ) ) {
-						$name_placeholder = $display_last_name ? __( 'First Name', 'newspack-newsletters' ) : __( 'Name', 'newspack-newsletters' );
-					}
 					?>
 					<div class="newspack-newsletters-name-input">
-						<input type="text" name="name" placeholder="<?php echo \esc_attr( $name_placeholder ); ?>" />
+
+						<div class="newspack-newsletters-name-input-item">
+							<?php if ( $display_input_label ) : ?>
+								<label for="<?php echo \esc_attr( $input_id . '-name' ); ?>"><?php echo \esc_html( $name_label ); ?></label>
+							<?php endif; ?>
+							<input id="<?php echo \esc_attr( $input_id . '-name' ); ?>" type="text" name="name" placeholder="<?php echo \esc_attr( $name_placeholder ); ?>" />
+						</div>
 						<?php if ( $display_last_name ) : ?>
-							<input type="text" name="last_name" placeholder="<?php echo \esc_attr( $last_name_placeholder ); ?>" />
+							<div class="newspack-newsletters-name-input-item">
+								<?php if ( $display_input_label ) : ?>
+									<label for="<?php echo \esc_attr( $input_id . '-last-name' ); ?>"><?php echo \esc_html( $last_name_label ); ?></label>
+								<?php endif; ?>
+								<input id="<?php echo \esc_attr( $input_id . '-last-name' ); ?>" type="text" name="last_name" placeholder="<?php echo \esc_attr( $last_name_placeholder ); ?>" />
+							</div>
 						<?php endif; ?>
 					</div>
 				<?php endif; ?>
 				<div class="newspack-newsletters-email-input">
+					<?php if ( $email_label ) : ?>
+						<label for="<?php echo \esc_attr( $input_id . '-email' ); ?>"><?php echo \esc_html( $email_label ); ?></label>
+					<?php endif; ?>
 					<input
+						id="<?php echo \esc_attr( $input_id . '-email' ); ?>"
 						type="email"
 						name="npe"
 						autocomplete="email"
@@ -196,15 +236,21 @@ function render_block( $attrs ) {
 						placeholder="<?php echo \esc_attr( $attrs['placeholder'] ); ?>"
 						value=""
 					/>
+					<?php if ( $provider && 'mailchimp' === $provider->service && $attrs['mailchimpDoubleOptIn'] ) : ?>
+						<input type="hidden" name="double_optin" value="1" />
+					<?php endif; ?>
 					<input type="submit" value="<?php echo \esc_attr( $attrs['label'] ); ?>" />
 				</div>
 			</form>
-			<div class="newspack-newsletters-subscribe-response">
-				<?php if ( ! empty( $message ) ) : ?>
-					<p><?php echo \esc_html( $message ); ?></p>
+		<?php endif; ?>
+		<div class="newspack-newsletters-subscribe__response">
+			<div class="newspack-newsletters-subscribe__icon"></div>
+			<div class="newspack-newsletters-subscribe__message">
+				<?php if ( ! empty( $message ) || $subscribed ) : ?>
+					<p><?php echo $subscribed ? \wp_kses_post( $attrs['successMessage'] ) : \esc_html( $message ); ?></p>
 				<?php endif; ?>
 			</div>
-		<?php endif; ?>
+		</div>
 	</div>
 	<?php
 	return ob_get_clean();
@@ -239,27 +285,32 @@ function get_block_classes( $attrs = [] ) {
 function send_form_response( $data ) {
 	$is_error = \is_wp_error( $data );
 	if ( \wp_is_json_request() ) {
-		if ( ! $is_error ) {
-			$message = __( 'Thank you for subscribing!', 'newspack' );
-		} else {
+		if ( $is_error ) {
 			$message = $data->get_error_message();
+			\wp_send_json( compact( 'message', 'data' ), 400 );
+			exit;
+		} else {
+			$data['newspack_newsletters_subscribed'] = 1;
+			\wp_send_json( $data, 200 );
+			exit;
 		}
-		\wp_send_json( compact( 'message', 'data' ), \is_wp_error( $data ) ? 400 : 200 );
-		exit;
 	} elseif ( isset( $_SERVER['REQUEST_METHOD'] ) && 'GET' === $_SERVER['REQUEST_METHOD'] ) {
 		$args_to_remove = [
 			'_wp_http_referer',
 			FORM_ACTION,
 		];
-		if ( ! $is_error ) {
+
+		$args = [ 'newspack_newsletters_subscribed' => $is_error ? '0' : '1' ];
+
+		if ( $is_error ) {
+			$args['message'] = $data->get_error_code();
+		} else {
 			$args_to_remove = array_merge( $args_to_remove, [ 'email', 'lists' ] );
 		}
+
 		\wp_safe_redirect(
 			\add_query_arg(
-				[
-					'newspack_newsletters_subscribed' => $is_error ? '0' : '1',
-					'message'                         => $is_error ? $data->get_error_message() : __( 'Thank you for subscribing!', 'newspack' ),
-				],
+				$args,
 				\remove_query_arg( $args_to_remove )
 			)
 		);
@@ -308,29 +359,44 @@ function process_form() {
 	);
 	$email     = \sanitize_email( $_REQUEST['npe'] );
 	$lists     = array_map( 'sanitize_text_field', $_REQUEST['lists'] );
+	$popup_id  = isset( $_REQUEST['newspack_popup_id'] ) ? (int) $_REQUEST['newspack_popup_id'] : false;
+	$metadata  = [
+		'current_page_url'                => home_url( add_query_arg( array(), \wp_get_referer() ) ),
+		'newspack_popup_id'               => $popup_id,
+		'newsletters_subscription_method' => 'newsletters-subscription-block',
+	];
+
+	// Handle Mailchimp double opt-in option.
+	$provider = \Newspack_Newsletters::get_service_provider();
+	if ( $provider && 'mailchimp' === $provider->service && isset( $_REQUEST['double_optin'] ) && '1' === $_REQUEST['double_optin'] ) {
+		$metadata['status'] = 'pending';
+	}
 
 	$result = \Newspack_Newsletters_Subscription::add_contact(
 		[
 			'name'     => $name ?? null,
 			'email'    => $email,
-			'metadata' => [
-				'current_page_url' => home_url( add_query_arg( array(), \wp_get_referer() ) ),
-			],
+			'metadata' => $metadata,
 		],
 		$lists
 	);
 
 	if ( ! \is_user_logged_in() && \class_exists( '\Newspack\Reader_Activation' ) && \Newspack\Reader_Activation::is_enabled() ) {
-		\Newspack\Reader_Activation::register_reader( $email, $name );
+		$metadata = array_merge( $metadata, [ 'registration_method' => 'newsletters-subscription' ] );
+		if ( $popup_id ) {
+			$metadata['registration_method'] = 'newsletters-subscription-popup';
+		}
+		\Newspack\Reader_Activation::register_reader( $email, $name, true, $metadata );
 	}
 
 	/**
 	 * Fires after subscribing a user to a list.
 	 *
 	 * @param string         $email  Email address of the reader.
-	 * @return array|WP_Error Contact data if it was added, or error otherwise.
+	 * @param array|WP_Error $result Contact data if it was added, or error otherwise.
+	 * @param array          $metadata Some metadata about the subscription. Always contains `current_page_url`, `newspack_popup_id` and `newsletters_subscription_method` keys.
 	 */
-	\do_action( 'newspack_newsletters_subscribe_form_processed', $email, $result );
+	\do_action( 'newspack_newsletters_subscribe_form_processed', $email, $result, $metadata );
 
 	return send_form_response( $result );
 }

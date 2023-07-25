@@ -1,3 +1,5 @@
+/* globals newspack_newsletters_blocks */
+/* eslint jsx-a11y/label-has-for: 0 */
 /**
  * External dependencies.
  */
@@ -8,10 +10,18 @@ import { intersection } from 'lodash';
  * WordPress dependencies
  */
 import apiFetch from '@wordpress/api-fetch';
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import { useState, useEffect } from '@wordpress/element';
-import { TextControl, ToggleControl, PanelBody, Notice, Spinner } from '@wordpress/components';
-import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
+import {
+	TextControl,
+	ToggleControl,
+	CheckboxControl,
+	PanelBody,
+	Notice,
+	Spinner,
+	Button,
+} from '@wordpress/components';
+import { useBlockProps, InspectorControls, RichText } from '@wordpress/block-editor';
 
 /**
  * Internal dependencies
@@ -22,22 +32,34 @@ const getListCheckboxId = listId => {
 	return 'newspack-newsletters-list-checkbox-' + listId;
 };
 
-const settingsUrl = window.newspack_newsletters_blocks.settings_url;
+const settingsUrl = newspack_newsletters_blocks.settings_url;
+
+const editedStateOptions = [
+	{ label: __( 'Initial', 'newspack-newsletters' ), value: 'initial' },
+	{ label: __( 'Success', 'newspack-newsletters' ), value: 'success' },
+];
 
 export default function SubscribeEdit( {
 	setAttributes,
 	attributes: {
+		displayInputLabels,
 		placeholder,
+		emailLabel,
 		displayNameField,
 		displayLastNameField,
 		namePlaceholder,
+		nameLabel,
 		lastNamePlaceholder,
+		lastNameLabel,
 		label,
+		successMessage,
 		lists,
 		displayDescription,
+		mailchimpDoubleOptIn,
 	},
 } ) {
 	const blockProps = useBlockProps();
+	const [ editedState, setEditedState ] = useState( editedStateOptions[ 0 ].value );
 	const [ inFlight, setInFlight ] = useState( false );
 	const [ listConfig, setListConfig ] = useState( {} );
 	const fetchLists = () => {
@@ -55,19 +77,15 @@ export default function SubscribeEdit( {
 			setAttributes( { lists: [ Object.keys( listConfig )[ 0 ] ] } );
 		}
 	}, [ listConfig ] );
-	const getNameFieldPlaceholder = () => {
-		if ( namePlaceholder ) {
-			return namePlaceholder;
-		}
-		if ( displayLastNameField ) {
-			return __( 'First Name', 'newspack-newsletters' );
-		}
-		return __( 'Name', 'newspack-newsletters' );
-	};
 	return (
 		<>
 			<InspectorControls>
 				<PanelBody title={ __( 'Form settings', 'newspack-newsletters' ) }>
+					<ToggleControl
+						label={ __( 'Display input labels', 'newspack-newsletters' ) }
+						checked={ displayInputLabels }
+						onChange={ value => setAttributes( { displayInputLabels: value } ) }
+					/>
 					<TextControl
 						label={ __( 'Email placeholder', 'newspack-newsletters' ) }
 						value={ placeholder }
@@ -83,7 +101,6 @@ export default function SubscribeEdit( {
 							<TextControl
 								label={ __( 'Name placeholder', 'newspack-newsletters' ) }
 								value={ namePlaceholder }
-								placeholder={ getNameFieldPlaceholder() }
 								onChange={ value => setAttributes( { namePlaceholder: value } ) }
 							/>
 							<ToggleControl
@@ -100,11 +117,6 @@ export default function SubscribeEdit( {
 							) }
 						</>
 					) }
-					<TextControl
-						label={ __( 'Button label', 'newspack-newsletters' ) }
-						value={ label }
-						onChange={ value => setAttributes( { label: value } ) }
-					/>
 					{ lists.length > 1 && (
 						<ToggleControl
 							label={ __( 'Display list description', 'newspack-newsletters' ) }
@@ -149,8 +161,62 @@ export default function SubscribeEdit( {
 						</a>
 					</p>
 				</PanelBody>
+				{ newspack_newsletters_blocks.provider === 'mailchimp' && (
+					<PanelBody title={ __( 'Mailchimp Settings', 'newspack-newsletters' ) }>
+						<CheckboxControl
+							label={ __( 'Enable double opt-in', 'newspack-newsletters' ) }
+							help={ __(
+								'Whether the new contact will have its status as "pending" until email confirmation',
+								'newspack-newsletters'
+							) }
+							checked={ mailchimpDoubleOptIn }
+							onChange={ value => setAttributes( { mailchimpDoubleOptIn: value } ) }
+						/>
+					</PanelBody>
+				) }
+				{ newspack_newsletters_blocks.supports_recaptcha && (
+					<PanelBody title={ __( 'Spam protection', 'newspack' ) }>
+						<p>
+							{ sprintf(
+								// translators: %s is either 'enabled' or 'disabled'.
+								__( 'reCAPTCHA v3 is currently %s.', 'newspack' ),
+								newspack_newsletters_blocks.has_recaptcha
+									? __( 'enabled', 'newspack' )
+									: __( 'disabled', 'newspack' )
+							) }
+						</p>
+						{ ! newspack_newsletters_blocks.has_recaptcha && (
+							<p>
+								{ __(
+									"It's highly recommended that you enable reCAPTCHA v3 protection to prevent spambots from using this form!",
+									'newspack'
+								) }
+							</p>
+						) }
+						<p>
+							<a href={ newspack_newsletters_blocks.recaptcha_url }>
+								{ __( 'Configure your reCAPTCHA settings.', 'newspack' ) }
+							</a>
+						</p>
+					</PanelBody>
+				) }
 			</InspectorControls>
 			<div { ...blockProps }>
+				<div className="newspack-newsletters-subscribe__state-bar">
+					<span>{ __( 'Edited State', 'newspack-newsletters' ) }</span>
+					<div>
+						{ editedStateOptions.map( option => (
+							<Button
+								key={ option.value }
+								data-is-active={ editedState === option.value }
+								onClick={ () => setEditedState( option.value ) }
+							>
+								{ option.label }
+							</Button>
+						) ) }
+					</div>
+				</div>
+
 				{ inFlight ? (
 					<Spinner />
 				) : (
@@ -159,49 +225,108 @@ export default function SubscribeEdit( {
 							'newspack-newsletters-subscribe': true,
 							'multiple-lists': lists.length > 1,
 						} ) }
+						data-status="200"
 					>
-						<form onSubmit={ ev => ev.preventDefault() }>
-							{ lists.length > 1 && (
-								<div className="newspack-newsletters-lists">
-									<ul>
-										{ lists.map( listId => (
-											<li key={ listId }>
-												<span className="list-checkbox">
-													<input
-														id={ getListCheckboxId( listId ) }
-														type="checkbox"
-														checked
-														readOnly
+						{ editedState === 'initial' && (
+							<form onSubmit={ ev => ev.preventDefault() }>
+								{ lists.length > 1 && (
+									<div className="newspack-newsletters-lists">
+										<ul>
+											{ lists.map( listId => (
+												<li key={ listId }>
+													<span className="list-checkbox">
+														<input
+															id={ getListCheckboxId( listId ) }
+															type="checkbox"
+															checked
+															readOnly
+														/>
+													</span>
+													<span className="list-details">
+														<label htmlFor={ getListCheckboxId( listId ) }>
+															<span className="list-title">{ listConfig[ listId ]?.title }</span>
+															{ displayDescription && (
+																<span className="list-description">
+																	{ listConfig[ listId ]?.description }
+																</span>
+															) }
+														</label>
+													</span>
+												</li>
+											) ) }
+										</ul>
+									</div>
+								) }
+								{ displayNameField && (
+									<div className="newspack-newsletters-name-input">
+										<div className="newspack-newsletters-name-input-item">
+											<label>
+												{ displayInputLabels && (
+													<RichText
+														onChange={ value => setAttributes( { nameLabel: value } ) }
+														placeholder={ __( 'Name', 'newspack' ) }
+														value={ nameLabel }
+														tagName="span"
 													/>
-												</span>
-												<span className="list-details">
-													<label htmlFor={ getListCheckboxId( listId ) }>
-														<span className="list-title">{ listConfig[ listId ]?.title }</span>
-														{ displayDescription && (
-															<span className="list-description">
-																{ listConfig[ listId ]?.description }
-															</span>
-														) }
-													</label>
-												</span>
-											</li>
-										) ) }
-									</ul>
+												) }
+											</label>
+											<input type="text" placeholder={ namePlaceholder } />
+										</div>
+										{ displayLastNameField && (
+											<div className="newspack-newsletters-name-input-item">
+												<label>
+													{ displayInputLabels && (
+														<RichText
+															onChange={ value => setAttributes( { lastNameLabel: value } ) }
+															placeholder={ __( 'Last Name', 'newspack' ) }
+															value={ lastNameLabel }
+															tagName="span"
+														/>
+													) }
+												</label>
+												<input type="text" placeholder={ lastNamePlaceholder } />
+											</div>
+										) }
+									</div>
+								) }
+								<div className="newspack-newsletters-email-input">
+									<label>
+										{ displayInputLabels && (
+											<RichText
+												onChange={ value => setAttributes( { emailLabel: value } ) }
+												placeholder={ __( 'Email Address', 'newspack' ) }
+												value={ emailLabel }
+												tagName="span"
+											/>
+										) }
+									</label>
+									<input type="email" placeholder={ placeholder } />
+									<div className="submit-button">
+										<RichText
+											onChange={ value => setAttributes( { label: value } ) }
+											placeholder={ __( 'Sign up', 'newspack' ) }
+											value={ label }
+											tagName="span"
+										/>
+									</div>
 								</div>
-							) }
-							{ displayNameField && (
-								<div className="newspack-newsletters-name-input">
-									<input type="text" placeholder={ getNameFieldPlaceholder() } />
-									{ displayLastNameField && (
-										<input type="text" placeholder={ lastNamePlaceholder } />
-									) }
+							</form>
+						) }
+						{ editedState === 'success' && (
+							<div className="newspack-newsletters-subscribe__response">
+								<div className="newspack-newsletters-subscribe__icon" />
+								<div className="newspack-newsletters-subscribe__message">
+									<RichText
+										onChange={ value => setAttributes( { successMessage: value } ) }
+										placeholder={ __( 'Success message', 'newspack-newsletters' ) }
+										value={ successMessage }
+										tagName="p"
+										className="message status-200"
+										allowedFormats={ [ 'core/bold', 'core/italic' ] }
+									/>
 								</div>
-							) }
-							<div className="newspack-newsletters-email-input">
-								<input type="email" placeholder={ placeholder } />
-								<input type="submit" value={ label } />
 							</div>
-						</form>
+						) }
 					</div>
 				) }
 			</div>
