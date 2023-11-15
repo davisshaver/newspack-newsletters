@@ -95,7 +95,7 @@ final class Newspack_Newsletters_Constant_Contact extends \Newspack_Newsletters_
 				$credentials['api_secret'],
 				$credentials['access_token']
 			);
-	
+
 			$response = [
 				'error'    => null,
 				'valid'    => false,
@@ -289,16 +289,6 @@ final class Newspack_Newsletters_Constant_Contact extends \Newspack_Newsletters_
 	}
 
 	/**
-	 * Get campaign name.
-	 *
-	 * @param WP_Post $post Post object.
-	 * @return String Campaign name.
-	 */
-	private function get_campaign_name( $post ) {
-		return 'Newspack Newsletter #' . $post->ID;
-	}
-
-	/**
 	 * Set list for a campaign.
 	 *
 	 * A campaign can not use segments and lists at the same time, so we also unset all segments.
@@ -456,15 +446,6 @@ final class Newspack_Newsletters_Constant_Contact extends \Newspack_Newsletters_
 	public function retrieve( $post_id ) {
 		if ( ! $this->has_api_credentials() || ! $this->has_valid_connection() ) {
 			return [];
-		}
-		$transient       = sprintf( 'newspack_newsletters_error_%s_%s', $post_id, get_current_user_id() );
-		$persisted_error = get_transient( $transient );
-		if ( $persisted_error ) {
-			delete_transient( $transient );
-			return new WP_Error(
-				'newspack_newsletters_constant_contact_error',
-				$persisted_error
-			);
 		}
 		try {
 			$cc             = new Newspack_Newsletters_Constant_Contact_SDK( $this->api_key(), $this->api_secret(), $this->access_token() );
@@ -690,6 +671,11 @@ final class Newspack_Newsletters_Constant_Contact extends \Newspack_Newsletters_
 				$campaign_result = $cc->create_campaign( $campaign );
 			}
 			update_post_meta( $post->ID, 'cc_campaign_id', $campaign_result->campaign_id );
+			// Retrieve and store campaign data.
+			$data = $this->retrieve( $post->ID );
+			if ( ! is_wp_error( $data ) ) {
+				update_post_meta( $post->ID, 'newsletterData', $data );
+			}
 			return $campaign_result;
 
 		} catch ( Exception $e ) {

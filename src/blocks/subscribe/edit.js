@@ -21,7 +21,14 @@ import {
 	Spinner,
 	Button,
 } from '@wordpress/components';
-import { useBlockProps, InspectorControls, RichText } from '@wordpress/block-editor';
+import {
+	useBlockProps,
+	InspectorControls,
+	RichText,
+	PanelColorSettings,
+	getColorObjectByColorValue,
+} from '@wordpress/block-editor';
+import { select } from '@wordpress/data';
 
 /**
  * Internal dependencies
@@ -39,6 +46,18 @@ const editedStateOptions = [
 	{ label: __( 'Success', 'newspack-newsletters' ), value: 'success' },
 ];
 
+function getColorName( colorvalue ) {
+	let colorName = '';
+	if ( colorvalue ) {
+		const settings = select( 'core/editor' ).getEditorSettings();
+		const colorObject = getColorObjectByColorValue( settings.colors, colorvalue );
+		if ( colorObject ) {
+			colorName = colorObject.slug;
+		}
+	}
+	return colorName;
+}
+
 export default function SubscribeEdit( {
 	setAttributes,
 	attributes: {
@@ -54,8 +73,11 @@ export default function SubscribeEdit( {
 		label,
 		successMessage,
 		lists,
+		listsCheckboxes,
 		displayDescription,
 		mailchimpDoubleOptIn,
+		textColor,
+		backgroundColor,
 	},
 } ) {
 	const blockProps = useBlockProps();
@@ -77,6 +99,26 @@ export default function SubscribeEdit( {
 			setAttributes( { lists: [ Object.keys( listConfig )[ 0 ] ] } );
 		}
 	}, [ listConfig ] );
+
+	const onChangeBackgroundColor = newBackgroundColor => {
+		setAttributes( { backgroundColorName: getColorName( newBackgroundColor ) } );
+		setAttributes( { backgroundColor: newBackgroundColor } );
+	};
+
+	const onChangeTextColor = newTextColor => {
+		setAttributes( { textColorName: getColorName( newTextColor ) } );
+		setAttributes( { textColor: newTextColor } );
+	};
+
+	const isListSelected = listId => {
+		return ! listsCheckboxes.hasOwnProperty( listId ) || listsCheckboxes[ listId ];
+	};
+	const toggleListCheckbox = listId => () => {
+		const newListsCheckboxes = { ...listsCheckboxes };
+		newListsCheckboxes[ listId ] = ! isListSelected( listId );
+		setAttributes( { listsCheckboxes: newListsCheckboxes } );
+	};
+
 	return (
 		<>
 			<InspectorControls>
@@ -124,6 +166,29 @@ export default function SubscribeEdit( {
 							onChange={ () => setAttributes( { displayDescription: ! displayDescription } ) }
 						/>
 					) }
+				</PanelBody>
+				<PanelBody title={ __( 'Styles', 'newspack-newsletters' ) } className="styles-container">
+					<p>
+						{ __(
+							"Make sure to pick a color that will contrast against the rest of your site's color scheme, to help this block stand out!",
+							'newspack-newsletters'
+						) }
+					</p>
+					<PanelColorSettings
+						initialOpen={ true }
+						colorSettings={ [
+							{
+								value: textColor,
+								onChange: onChangeTextColor,
+								label: __( 'Text color', 'newspack-newsletters' ),
+							},
+							{
+								value: backgroundColor,
+								onChange: onChangeBackgroundColor,
+								label: __( 'Background color', 'newspack-newsletters' ),
+							},
+						] }
+					/>
 				</PanelBody>
 				<PanelBody title={ __( 'Subscription Lists', 'newspack-newsletters' ) }>
 					{ inFlight && <Spinner /> }
@@ -238,8 +303,8 @@ export default function SubscribeEdit( {
 														<input
 															id={ getListCheckboxId( listId ) }
 															type="checkbox"
-															checked
-															readOnly
+															checked={ isListSelected( listId ) }
+															onChange={ toggleListCheckbox( listId ) }
 														/>
 													</span>
 													<span className="list-details">
@@ -301,7 +366,7 @@ export default function SubscribeEdit( {
 										) }
 									</label>
 									<input type="email" placeholder={ placeholder } />
-									<div className="submit-button">
+									<div className="submit-button" style={ { backgroundColor, color: textColor } }>
 										<RichText
 											onChange={ value => setAttributes( { label: value } ) }
 											placeholder={ __( 'Sign up', 'newspack' ) }

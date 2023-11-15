@@ -141,7 +141,7 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 		// Prevent status change from the controlled status if newsletter has been sent.
 		if ( ! in_array( $new_status, self::$controlled_statuses, true ) && $old_status !== $new_status && $sent ) {
 			$error = new WP_Error( 'newspack_newsletters_error', __( 'You cannot change a sent newsletter status.', 'newspack-newsletters' ), [ 'status' => 403 ] );
-			wp_die( $error ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			wp_die( esc_html( $error->get_error_message() ) );
 		}
 
 		// Send if changing from any status to controlled statuses - 'publish' or 'private'.
@@ -153,9 +153,7 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 		) {
 			$result = $this->send_newsletter( $post );
 			if ( is_wp_error( $result ) ) {
-				$transient = sprintf( 'newspack_newsletters_error_%s_%s', $post->ID, get_current_user_id() );
-				set_transient( $transient, $result->get_error_message(), 45 );
-				wp_die( $result ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				wp_die( esc_html( $result->get_error_message() ) );
 			}
 		}
 	}
@@ -188,19 +186,15 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 
 		if ( in_array( $new_status, self::$controlled_statuses, true ) && 'future' === $old_status ) {
 			update_post_meta( $post->ID, 'sending_scheduled', true );
-			$result              = $this->send_newsletter( $post );
-			$error_transient_key = sprintf( 'newspack_newsletters_scheduling_error_%s', $post->ID );
+			$result = $this->send_newsletter( $post );
 			if ( is_wp_error( $result ) ) {
-				set_transient( $error_transient_key, $result->get_error_message() );
 				wp_update_post(
 					[
 						'ID'          => $post->ID,
 						'post_status' => 'draft',
 					]
 				);
-				wp_die( $result ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-			} else {
-				delete_transient( $error_transient_key );
+				wp_die( esc_html( $result->get_error_message() ) );
 			}
 			delete_post_meta( $post->ID, 'sending_scheduled' );
 		}
@@ -366,7 +360,35 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 			Newspack_Newsletters::set_newsletter_sent( $post_id );
 		}
 
+		if ( \is_wp_error( $result ) ) {
+			$errors = get_post_meta( $post_id, 'newsletter_send_errors', true );
+			if ( ! is_array( $errors ) ) {
+				$errors = [];
+			}
+			$errors[] = [
+				'timestamp' => time(),
+				'message'   => $result->get_error_message(),
+			];
+			$errors   = array_slice( $errors, -10, 10, true );
+			update_post_meta( $post_id, 'newsletter_send_errors', $errors );
+		}
+
 		return $result;
+	}
+
+	/**
+	 * Get campaign name.
+	 *
+	 * @param WP_Post $post Post object.
+	 *
+	 * @return string Campaign name.
+	 */
+	public function get_campaign_name( $post ) {
+		$campaign_name = get_post_meta( $post->ID, 'campaign_name', true );
+		if ( $campaign_name ) {
+			return $campaign_name;
+		}
+		return sprintf( 'Newspack Newsletter (%d)', $post->ID );
 	}
 
 	/**
@@ -433,10 +455,10 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 	 *
 	 * @return array|WP_Error Contact data if it was added, or error otherwise.
 	 */
-	public function add_contact_handling_local_lists( $contact, $list_id ) {
-		if ( Subscription_List::is_form_id( $list_id ) ) {
+	public function add_contact_handling_local_list( $contact, $list_id ) {
+		if ( Subscription_List::is_local_form_id( $list_id ) ) {
 			try {
-				$list = new Subscription_List( $list_id );
+				$list = Subscription_List::from_form_id( $list_id );
 
 				if ( ! $list->is_configured_for_provider( $this->service ) ) {
 					return new WP_Error( 'List not properly configured for the provider' );
@@ -477,7 +499,7 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 		$contact = $this->get_contact_data( $email );
 		if ( is_wp_error( $contact ) ) {
 			// Create contact.
-			// Use  Newspack_Newsletters_Subscription::add_contact to trigger hooks and call add_contact_handling_local_lists if needed.
+			// Use  Newspack_Newsletters_Subscription::add_contact to trigger hooks and call add_contact_handling_local_list if needed.
 			$result = Newspack_Newsletters_Subscription::add_contact( [ 'email' => $email ], $lists_to_add );
 			if ( is_wp_error( $result ) ) {
 				return $result;
@@ -495,7 +517,6 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 			}
 		}
 		return $this->update_contact_lists( $email, $lists_to_add, $lists_to_remove );
-
 	}
 
 	/**
@@ -508,9 +529,9 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 	 */
 	public function update_contact_local_lists( $email, $lists = [], $action = 'add' ) {
 		foreach ( $lists as $key => $list_id ) {
-			if ( Subscription_List::is_form_id( $list_id ) ) {
+			if ( Subscription_List::is_local_form_id( $list_id ) ) {
 				try {
-					$list = new Subscription_List( $list_id );
+					$list = Subscription_List::from_form_id( $list_id );
 
 					if ( ! $list->is_configured_for_provider( $this->service ) ) {
 						return new WP_Error( 'List not properly configured for the provider' );
@@ -547,6 +568,9 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 		$lists = Subscription_Lists::get_configured_for_provider( $this->service );
 		$ids   = [];
 		foreach ( $lists as $list ) {
+			if ( ! $list->is_local() ) {
+				continue;
+			}
 			$list_settings = $list->get_provider_settings( $this->service );
 			if ( in_array( $list_settings['tag_id'], $tags, false ) ) { // phpcs:ignore WordPress.PHP.StrictInArray.FoundNonStrictFalse
 				$ids[] = $list->get_form_id();
@@ -748,5 +772,16 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 	 */
 	public function get_contact_esp_local_lists_ids( $email ) {
 		return $this->get_contact_tags_ids( $email );
+	}
+
+	/**
+	 * Get usage data.
+	 *
+	 * @param int $last_n_days Number of days to get the report for.
+	 *
+	 * @return array|WP_Error
+	 */
+	public function get_usage_report( $last_n_days ) {
+		return new WP_Error( 'newspack_newsletters_not_implemented', __( 'Not implemented', 'newspack-newsletters' ), [ 'status' => 400 ] );
 	}
 }
