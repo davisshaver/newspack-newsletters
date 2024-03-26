@@ -83,7 +83,6 @@ class Subscription_Lists {
 
 		// Only init if current provider supports local lists.
 		return $provider::$support_local_lists;
-
 	}
 
 	/**
@@ -111,37 +110,37 @@ class Subscription_Lists {
 	public static function register_post_type() {
 
 		$labels = array(
-			'name'                  => _x( 'Subscription Lists', 'Post Type General Name', 'newspack' ),
-			'singular_name'         => _x( 'Subscription List', 'Post Type Singular Name', 'newspack' ),
-			'menu_name'             => __( 'Subscription Lists', 'newspack' ),
-			'name_admin_bar'        => __( 'Subscription Lists', 'newspack' ),
-			'archives'              => __( 'Subscription Lists', 'newspack' ),
-			'attributes'            => __( 'Subscription Lists', 'newspack' ),
-			'parent_item_colon'     => __( 'Parent Subscription List', 'newspack' ),
-			'all_items'             => __( 'Subscription Lists', 'newspack' ),
-			'add_new_item'          => __( 'Add new list', 'newspack' ),
-			'add_new'               => __( 'Add New', 'newspack' ),
-			'new_item'              => __( 'New Subscription List', 'newspack' ),
-			'edit_item'             => __( 'Edit list', 'newspack' ),
-			'update_item'           => __( 'Update list', 'newspack' ),
-			'view_item'             => __( 'View list', 'newspack' ),
-			'view_items'            => __( 'View Subscription Lists', 'newspack' ),
-			'search_items'          => __( 'Search Subscription List', 'newspack' ),
-			'not_found'             => __( 'Not found', 'newspack' ),
-			'not_found_in_trash'    => __( 'Not found in Trash', 'newspack' ),
-			'featured_image'        => __( 'Featured Image', 'newspack' ),
-			'set_featured_image'    => __( 'Set featured image', 'newspack' ),
-			'remove_featured_image' => __( 'Remove featured image', 'newspack' ),
-			'use_featured_image'    => __( 'Use as featured image', 'newspack' ),
-			'insert_into_item'      => __( 'Insert into item', 'newspack' ),
-			'uploaded_to_this_item' => __( 'Uploaded to this item', 'newspack' ),
-			'items_list'            => __( 'Items list', 'newspack' ),
-			'items_list_navigation' => __( 'Items list navigation', 'newspack' ),
-			'filter_items_list'     => __( 'Filter items list', 'newspack' ),
+			'name'                  => _x( 'Subscription Lists', 'Post Type General Name', 'newspack-newsletters' ),
+			'singular_name'         => _x( 'Subscription List', 'Post Type Singular Name', 'newspack-newsletters' ),
+			'menu_name'             => __( 'Subscription Lists', 'newspack-newsletters' ),
+			'name_admin_bar'        => __( 'Subscription Lists', 'newspack-newsletters' ),
+			'archives'              => __( 'Subscription Lists', 'newspack-newsletters' ),
+			'attributes'            => __( 'Subscription Lists', 'newspack-newsletters' ),
+			'parent_item_colon'     => __( 'Parent Subscription List', 'newspack-newsletters' ),
+			'all_items'             => __( 'Subscription Lists', 'newspack-newsletters' ),
+			'add_new_item'          => __( 'Add new list', 'newspack-newsletters' ),
+			'add_new'               => __( 'Add New', 'newspack-newsletters' ),
+			'new_item'              => __( 'New Subscription List', 'newspack-newsletters' ),
+			'edit_item'             => __( 'Edit list', 'newspack-newsletters' ),
+			'update_item'           => __( 'Update list', 'newspack-newsletters' ),
+			'view_item'             => __( 'View list', 'newspack-newsletters' ),
+			'view_items'            => __( 'View Subscription Lists', 'newspack-newsletters' ),
+			'search_items'          => __( 'Search Subscription List', 'newspack-newsletters' ),
+			'not_found'             => __( 'Not found', 'newspack-newsletters' ),
+			'not_found_in_trash'    => __( 'Not found in Trash', 'newspack-newsletters' ),
+			'featured_image'        => __( 'Featured Image', 'newspack-newsletters' ),
+			'set_featured_image'    => __( 'Set featured image', 'newspack-newsletters' ),
+			'remove_featured_image' => __( 'Remove featured image', 'newspack-newsletters' ),
+			'use_featured_image'    => __( 'Use as featured image', 'newspack-newsletters' ),
+			'insert_into_item'      => __( 'Insert into item', 'newspack-newsletters' ),
+			'uploaded_to_this_item' => __( 'Uploaded to this item', 'newspack-newsletters' ),
+			'items_list'            => __( 'Items list', 'newspack-newsletters' ),
+			'items_list_navigation' => __( 'Items list navigation', 'newspack-newsletters' ),
+			'filter_items_list'     => __( 'Filter items list', 'newspack-newsletters' ),
 		);
 		$args   = array(
-			'label'                => __( 'Subscription List', 'newspack' ),
-			'description'          => __( 'Newsletter Subscription list', 'newspack' ),
+			'label'                => __( 'Subscription List', 'newspack-newsletters' ),
+			'description'          => __( 'Newsletter Subscription list', 'newspack-newsletters' ),
 			'labels'               => $labels,
 			'supports'             => array( 'title', 'editor' ),
 			'hierarchical'         => false,
@@ -371,7 +370,6 @@ class Subscription_Lists {
 		}
 
 		$subscription_list->update_current_provider_settings( $list, $tag_id, $new_tag_name, $error );
-
 	}
 
 	/**
@@ -413,7 +411,7 @@ class Subscription_Lists {
 		return array_values(
 			array_filter(
 				$lists,
-				function( $list ) use ( $callback ) {
+				function ( $list ) use ( $callback ) {
 					return call_user_func( $callback, $list );
 				}
 			)
@@ -428,7 +426,7 @@ class Subscription_Lists {
 	 */
 	public static function get_configured_for_provider( $provider_slug ) {
 		return self::get_filtered(
-			function( $list ) use ( $provider_slug ) {
+			function ( $list ) use ( $provider_slug ) {
 				return $list->is_configured_for_provider( $provider_slug );
 			}
 		);
@@ -441,7 +439,7 @@ class Subscription_Lists {
 	 */
 	public static function get_configured_for_current_provider() {
 		return self::get_filtered(
-			function( $list ) {
+			function ( $list ) {
 				return $list->is_configured_for_current_provider();
 			}
 		);
@@ -584,16 +582,17 @@ class Subscription_Lists {
 	 *
 	 * @param array  $existing_ids The list of IDs that exist in the ESP. All other remote lists will be deleted.
 	 * @param string $provider_slug The provider slug to clean up lists for. Default is the current configured provider.
+	 * @param bool   $delete_local If true, delete all local lists as well.
 	 * @return void
 	 */
-	public static function garbage_collector( $existing_ids, $provider_slug = null ) {
+	public static function garbage_collector( $existing_ids, $provider_slug = null, $delete_local = false ) {
 		if ( is_null( $provider_slug ) ) {
 			$provider      = Newspack_Newsletters::get_service_provider();
 			$provider_slug = $provider->service;
 		}
 		$all_lists = self::get_all();
 		foreach ( $all_lists as $list ) {
-			if ( ! $list->is_local() && $provider_slug === $list->get_provider() && ! in_array( $list->get_id(), $existing_ids ) ) {
+			if ( ( $delete_local || ! $list->is_local() ) && $provider_slug === $list->get_provider() && ! in_array( $list->get_id(), $existing_ids ) ) {
 				self::delete_list( $list );
 			}
 		}
@@ -618,7 +617,7 @@ class Subscription_Lists {
 			printf( '<h2>%s</h2>', esc_html__( 'Description', 'newspack-newsletters' ) );
 		}
 	}
-	
+
 	/**
 	 * Outputs a link back to the Settings page above the title in the post editor.
 	 */
@@ -654,7 +653,7 @@ class Subscription_Lists {
 			}
 
 			foreach ( $lists as $list_id => $list ) {
-				
+
 				if ( Subscription_List::is_local_form_id( $list_id ) ) {
 					continue;
 				}

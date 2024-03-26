@@ -56,7 +56,7 @@ class Woocommerce_Memberships {
 	 * Initialize the hooks after all plugins are loaded
 	 */
 	public static function init_hooks() {
-		if ( ! class_exists( 'WC_Memberships_Loader' ) ) {
+		if ( ! class_exists( 'WC_Memberships_Loader' ) || ! function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
 			return;
 		}
 		add_filter( 'newspack_newsletters_contact_lists', [ __CLASS__, 'filter_lists' ] );
@@ -87,7 +87,7 @@ class Woocommerce_Memberships {
 					return false;
 				}
 
-				$is_post_restricted = wc_memberships_is_post_content_restricted( $list_object->get_id() );
+				$is_post_restricted = \wc_memberships_is_post_content_restricted( $list_object->get_id() );
 
 				if ( ! $is_post_restricted ) {
 					return true;
@@ -95,7 +95,7 @@ class Woocommerce_Memberships {
 
 				$user_id = self::$user_id_in_scope ?? get_current_user_id();
 
-				return wc_memberships_user_can( $user_id, 'view', [ 'post' => $list_object->get_id() ] );
+				return \wc_memberships_user_can( $user_id, 'view', [ 'post' => $list_object->get_id() ] );
 			}
 		);
 		return array_values( $lists );
@@ -132,7 +132,20 @@ class Woocommerce_Memberships {
 	 * @return void
 	 */
 	public static function handle_membership_status_change( $user_membership, $old_status, $new_status ) {
-		Newspack_Newsletters_Logger::log( 'Membership status changed to ' . $new_status );
+		$user = $user_membership->get_user();
+		if ( ! $user ) {
+			return;
+		}
+		$user_email = $user->user_email;
+
+		Newspack_Newsletters_Logger::log(
+			sprintf(
+				'Membership status for %s changed from %s to %s',
+				$user_email,
+				$old_status,
+				$new_status
+			)
+		);
 
 		// Store the previous status so we can check it in the `add_user_to_lists` method, that runs on a later hook.
 		self::$previous_statuses[ $user_membership->get_id() ] = $old_status;
@@ -142,7 +155,6 @@ class Woocommerce_Memberships {
 		if ( ! in_array( $new_status, $status_considered_active ) ) {
 			self::remove_user_from_lists( $user_membership );
 		}
-
 	}
 
 	/**
@@ -158,7 +170,12 @@ class Woocommerce_Memberships {
 			return;
 		}
 		$user_email = $user->user_email;
-		$rules      = $user_membership->get_plan()->get_content_restriction_rules();
+		$plan       = $user_membership->get_plan();
+		if ( ! $plan instanceof \WC_Memberships_Membership_Plan ) {
+			return;
+		}
+
+		$rules = $plan->get_content_restriction_rules();
 		foreach ( $rules as $rule ) {
 			if ( Subscription_Lists::CPT !== $rule->get_content_type_name() ) {
 				continue;
@@ -173,6 +190,12 @@ class Woocommerce_Memberships {
 				}
 			}
 		}
+
+		// Bail if there are no lists we need to remove.
+		if ( empty( $lists_to_remove ) ) {
+			return;
+		}
+
 		$provider = Newspack_Newsletters::get_service_provider();
 
 		/**
@@ -196,7 +219,6 @@ class Woocommerce_Memberships {
 			$provider->update_contact_lists_handling_local( $user_email, [], $lists_to_remove );
 			Newspack_Newsletters_Logger::log( 'Reader ' . $user_email . ' removed from the following lists: ' . implode( ', ', $lists_to_remove ) );
 		}
-
 	}
 
 	/**
@@ -250,7 +272,7 @@ class Woocommerce_Memberships {
 		$user_email   = $user->user_email;
 		$rules        = $plan->get_content_restriction_rules();
 
-		Newspack_Newsletters_Logger::log( 'New membership granted to ' . $user_email );
+		Newspack_Newsletters_Logger::log( 'Membership activated for ' . $user_email );
 
 		foreach ( $rules as $rule ) {
 			if ( Subscription_Lists::CPT !== $rule->get_content_type_name() ) {
@@ -266,6 +288,16 @@ class Woocommerce_Memberships {
 				}
 			}
 		}
+		if ( empty( $lists_to_add ) ) {
+			return;
+		}
+
+		// No need to re-add the user to the lists they are already subscribed to.
+		$current_user_lists = \Newspack_Newsletters_Subscription::get_contact_lists( $user_email );
+		$lists_to_add      = array_diff( $lists_to_add, $current_user_lists );
+		if ( empty( $lists_to_add ) ) {
+			return;
+		}
 
 		/**
 		 * In case the user was previously removed from the lists, we want to resubscribe them only to the lists they were in.
@@ -280,7 +312,13 @@ class Woocommerce_Memberships {
 		}
 
 		$provider = Newspack_Newsletters::get_service_provider();
-		$provider->update_contact_lists_handling_local( $user_email, $lists_to_add );
+		$result = $provider->update_contact_lists_handling_local( $user_email, $lists_to_add );
+
+		if ( is_wp_error( $result ) ) {
+			Newspack_Newsletters_Logger::log( 'An error occured while updating lists for ' . $user_email . ': ' . $result->get_error_message() );
+			return;
+		}
+
 		Newspack_Newsletters_Logger::log( 'Reader ' . $user_email . ' added to the following lists: ' . implode( ', ', $lists_to_add ) );
 	}
 
@@ -325,7 +363,6 @@ class Woocommerce_Memberships {
 		}
 		return $value[ $membership_id ];
 	}
-
 }
 
 Woocommerce_Memberships::init();
