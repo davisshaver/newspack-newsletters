@@ -472,7 +472,9 @@ final class Newspack_Newsletters {
 	 * Set text domain.
 	 */
 	public static function load_textdomain() {
-		load_plugin_textdomain( 'newspack-newsletters', false, NEWSPACK_NEWSLETTERS_PLUGIN_FILE . '/languages/' );
+		if ( defined( 'NEWSPACK_NEWSLETTERS_PLUGIN_FILE' ) ) {
+			load_plugin_textdomain( 'newspack-newsletters', false, NEWSPACK_NEWSLETTERS_PLUGIN_FILE . '/languages/' );
+		}
 	}
 
 	/**
