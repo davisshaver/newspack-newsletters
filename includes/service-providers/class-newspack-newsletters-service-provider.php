@@ -141,7 +141,7 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 		// Prevent status change from the controlled status if newsletter has been sent.
 		if ( ! in_array( $new_status, self::$controlled_statuses, true ) && $old_status !== $new_status && $sent ) {
 			$error = new WP_Error( 'newspack_newsletters_error', __( 'You cannot change a sent newsletter status.', 'newspack-newsletters' ), [ 'status' => 403 ] );
-			wp_die( esc_html( $error->get_error_message() ) );
+			wp_die( esc_html( $error->get_error_message() ), '', 400 );
 		}
 
 		// Send if changing from any status to controlled statuses - 'publish' or 'private'.
@@ -153,7 +153,7 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 		) {
 			$result = $this->send_newsletter( $post );
 			if ( is_wp_error( $result ) ) {
-				wp_die( esc_html( $result->get_error_message() ) );
+				wp_die( esc_html( $result->get_error_message() ), '', esc_html( $result->get_error_code() ) );
 			}
 		}
 	}
@@ -194,7 +194,7 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 						'post_status' => 'draft',
 					]
 				);
-				wp_die( esc_html( $result->get_error_message() ) );
+				wp_die( esc_html( $result->get_error_message() ), '', esc_html( $result->get_error_code() ) );
 			}
 			delete_post_meta( $post->ID, 'sending_scheduled' );
 		}
@@ -365,12 +365,37 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 			if ( ! is_array( $errors ) ) {
 				$errors = [];
 			}
+			$error_message = $result->get_error_message();
 			$errors[] = [
 				'timestamp' => time(),
-				'message'   => $result->get_error_message(),
+				'message'   => $error_message,
 			];
 			$errors   = array_slice( $errors, -10, 10, true );
 			update_post_meta( $post_id, 'newsletter_send_errors', $errors );
+
+			$message = sprintf(
+				/* translators: %1$s is the campaign title, %2$s is the edit link, %3$s is the error message. */
+				__(
+					'Hi,
+
+A newsletter campaign called "%1$s" failed to send on your site.
+
+You can edit the campaign here: %2$s.
+
+Details of the error message: "%3$s"
+',
+					'newspack-newsletters'
+				),
+				$post->post_title,
+				get_edit_post_link( $post_id ),
+				$error_message
+			);
+
+			\wp_mail( // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.wp_mail_wp_mail
+				get_option( 'admin_email' ),
+				__( 'Sending a newsletter failed', 'newspack-newsletters' ),
+				$message
+			);
 		}
 
 		return $result;
@@ -438,11 +463,8 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 	}
 
 	/**
-	 * Add or update contact to a list, but handling local Subscription Lists
-	 *
-	 * The difference between this method and add_contact is that this method will identify and handle local lists
-	 *
-	 * If the $list_id informed is a local list, it will read its settings and call add_contact with the list associated and also add the tag to the contact
+	 * Handle adding to local lists.
+	 * If the $list_id is a local list, a tag will be added to the contact.
 	 *
 	 * @param array  $contact      {
 	 *    Contact data.
@@ -453,35 +475,24 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 	 * }
 	 * @param string $list_id      List to add the contact to.
 	 *
-	 * @return array|WP_Error Contact data if it was added, or error otherwise.
+	 * @return true|WP_Error True or error.
 	 */
 	public function add_contact_handling_local_list( $contact, $list_id ) {
+		if ( ! static::$support_local_lists ) {
+			return true;
+		}
 		if ( Subscription_List::is_local_form_id( $list_id ) ) {
 			try {
 				$list = Subscription_List::from_form_id( $list_id );
-
 				if ( ! $list->is_configured_for_provider( $this->service ) ) {
 					return new WP_Error( 'List not properly configured for the provider' );
 				}
 				$list_settings = $list->get_provider_settings( $this->service );
-
-				$added_contact = $this->add_contact( $contact, $list_settings['list'] );
-
-				if ( is_wp_error( $added_contact ) ) {
-					return $added_contact;
-				}
-
-				if ( static::$support_local_lists ) {
-					$this->add_esp_local_list_to_contact( $contact['email'], $list_settings['tag_id'], $list_settings['list'] );
-				}
-
-				return $added_contact;
-
+				return $this->add_esp_local_list_to_contact( $contact['email'], $list_settings['tag_id'], $list_settings['list'] );
 			} catch ( \InvalidArgumentException $e ) {
 				return new WP_Error( 'List not found' );
 			}
 		}
-		return $this->add_contact( $contact, $list_id );
 	}
 
 	/**

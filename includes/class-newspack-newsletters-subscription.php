@@ -361,6 +361,20 @@ class Newspack_Newsletters_Subscription {
 			$lists = [ $lists ];
 		}
 
+		/**
+		 * Trigger an action before contact adding.
+		 *
+		 * @param string[]|false $lists    Array of list IDs the contact will be subscribed to, or false.
+		 * @param array          $contact  {
+		 *          Contact information.
+		 *
+		 *    @type string   $email    Contact email address.
+		 *    @type string   $name     Contact name. Optional.
+		 *    @type string[] $metadata Contact additional metadata. Optional.
+		 * }
+		 */
+		do_action( 'newspack_newsletters_pre_add_contact', $lists, $contact );
+
 		$provider = Newspack_Newsletters::get_service_provider();
 		if ( empty( $provider ) ) {
 			return new WP_Error( 'newspack_newsletters_invalid_provider', __( 'Provider is not set.' ) );
@@ -590,18 +604,18 @@ class Newspack_Newsletters_Subscription {
 		session_write_close(); // phpcs:ignore
 
 		if ( ! isset( $_REQUEST['nonce'] ) || ! \wp_verify_nonce( \sanitize_text_field( $_REQUEST['nonce'] ), self::ASYNC_ACTION ) ) {
-			\wp_die();
+			\wp_die( 'Invalid nonce.', '', 400 );
 		}
 
 		$intent_id = $_POST['intent_id'] ?? ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		$intent_id = \absint( $intent_id );
 
 		if ( empty( $intent_id ) ) {
-			\wp_die();
+			\wp_die( 'Invalid intent ID.', '', 400 );
 		}
 
 		self::process_subscription_intents( $intent_id );
-		\wp_die();
+		\wp_die( 'OK', '', 200 );
 	}
 
 	/**
@@ -614,29 +628,38 @@ class Newspack_Newsletters_Subscription {
 	 *
 	 * @return array|WP_Error Contact data if it was added, or error otherwise.
 	 */
-	private static function add_contact_to_provider( $contact, $lists, $is_updating = false ) {
+	private static function add_contact_to_provider( $contact, $lists = [], $is_updating = false ) {
 		$provider = Newspack_Newsletters::get_service_provider();
 		$errors   = new WP_Error();
 		$result   = [];
 
-		if ( empty( $lists ) ) {
-			try {
+		try {
+			if ( method_exists( $provider, 'add_contact_with_groups_and_tags' ) ) {
+				$result = $provider->add_contact_with_groups_and_tags( $contact, $lists );
+			} elseif ( empty( $lists ) ) {
 				$result = $provider->add_contact( $contact );
-			} catch ( \Exception $e ) {
-				$errors->add( 'newspack_newsletters_subscription_add_contact', $e->getMessage() );
-			}
-		} else {
-			foreach ( $lists as $list_id ) {
-				try {
-					$result = $provider->add_contact_handling_local_list( $contact, $list_id );
-				} catch ( \Exception $e ) {
-					$errors->add( 'newspack_newsletters_subscription_add_contact', $e->getMessage() );
+			} else {
+				foreach ( $lists as $list_id ) {
+					$result = $provider->add_contact( $contact, $list_id );
 				}
 			}
+		} catch ( \Exception $e ) {
+			$errors->add( 'newspack_newsletters_subscription_add_contact', $e->getMessage() );
 		}
+
 		if ( is_wp_error( $result ) ) {
 			$errors->add( $result->get_error_code(), $result->get_error_message() );
 		}
+
+		// Handle local lists feature.
+		foreach ( $lists as $list_id ) {
+			try {
+				$provider->add_contact_handling_local_list( $contact, $list_id );
+			} catch ( \Exception $e ) {
+				$errors->add( 'newspack_newsletters_subscription_handling_local_list', $e->getMessage() );
+			}
+		}
+
 		$result = $errors->has_errors() ? $errors : $result;
 
 		/**
@@ -933,7 +956,7 @@ class Newspack_Newsletters_Subscription {
 		}
 
 		if ( ! is_user_logged_in() ) {
-			wp_die( esc_html( __( 'Invalid request.', 'newspack-newsletters' ) ) );
+			wp_die( esc_html( __( 'Invalid request.', 'newspack-newsletters' ) ), '', 400 );
 		}
 
 		$user               = wp_get_current_user();
@@ -1026,15 +1049,15 @@ class Newspack_Newsletters_Subscription {
 			return;
 		}
 		if ( ! is_user_logged_in() ) {
-			wp_die( esc_html( __( 'You\'re not logged in.', 'newspack-newsletters' ) ) );
+			wp_die( esc_html( __( 'You\'re not logged in.', 'newspack-newsletters' ) ), '', 401 );
 		}
 		$transient_key = self::get_email_verification_transient_key();
 		$token         = get_transient( $transient_key );
 		if ( ! $token ) {
-			wp_die( esc_html( __( 'Invalid request.', 'newspack-newsletters' ) ) );
+			wp_die( esc_html( __( 'Invalid request.', 'newspack-newsletters' ) ), '', 400 );
 		}
 		if ( ! isset( $_GET['token'] ) || sanitize_text_field( $_GET['token'] ) !== $token ) {
-			wp_die( esc_html( __( 'Invalid request.', 'newspack-newsletters' ) ) );
+			wp_die( esc_html( __( 'Invalid request.', 'newspack-newsletters' ) ), '', 400 );
 		}
 
 		self::set_email_verified( get_current_user_id() );
