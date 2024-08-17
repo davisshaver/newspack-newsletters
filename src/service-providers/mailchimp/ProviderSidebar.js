@@ -95,13 +95,47 @@ const ProviderSidebar = ( {
 	// Separate out audiences from other data item types.
 	const audiences = newsletterData?.lists
 		? newsletterData.lists.filter(
-				list => 'mailchimp-group' !== list.type && 'mailchimp-tag' !== list.type
-		  )
-		: [];
+			list => 'mailchimp-group' !== list.type && 'mailchimp-tag' !== list.type
+		) : [];
 	const folders = newsletterData?.folders || [];
 
+	const setDefaultsFromLayout = () => {
+		try {
+			const layoutDefaults = JSON.parse( stringifiedLayoutDefaults );
+			if ( layoutDefaults.senderEmail && layoutDefaults.senderName ) {
+				const existingSenderData = meta.senderEmail && meta.senderName;
+				if ( ! existingSenderData ) {
+					setSender( {
+						senderName: layoutDefaults.senderName,
+						senderEmail: layoutDefaults.senderEmail,
+					} );
+				}
+			}
+			if ( layoutDefaults.newsletterData?.campaign?.recipients?.list_id ) {
+				const existingListId = newsletterData.campaign?.recipients?.list_id;
+				if ( ! existingListId ) {
+					setList( layoutDefaults.newsletterData?.campaign.recipients.list_id ).then( () => {
+						const subAudienceValue = getSubAudienceValue( layoutDefaults.newsletterData );
+						if ( subAudienceValue ) {
+							updateSegments( subAudienceValue );
+						}
+					} );
+				}
+			}
+		} catch ( e ) {
+			// Ignore it.
+		}
+	};
+
 	useEffect( () => {
-		fetchListsAndSegments();
+		const performSetup = async () => {
+			await fetchListsAndSegments();
+			// If there is a stringified newsletter data from the layout, use it to set the list and segments.
+			if ( stringifiedLayoutDefaults.length ) {
+				setDefaultsFromLayout();
+			}
+		};
+		performSetup();
 	}, [] );
 
 	const fetchListsAndSegments = async () => {
@@ -172,46 +206,15 @@ const ProviderSidebar = ( {
 			updateMeta( {
 				...( from_name
 					? {
-							senderName: from_name,
-					  }
-					: {} ),
+						senderName: from_name,
+					} : {} ),
 				...( reply_to
 					? {
-							senderEmail: reply_to,
-					  }
-					: {} ),
+						senderEmail: reply_to,
+					} : {} ),
 			} );
 		}
 	}, [ campaign ] );
-
-	// If there is a stringified newsletter data from the layout, use it to set the list and segments.
-	useEffect( () => {
-		try {
-			const layoutDefaults = JSON.parse( stringifiedLayoutDefaults );
-			if ( layoutDefaults.senderEmail && layoutDefaults.senderName ) {
-				const existingSenderData = meta.senderEmail && meta.senderName;
-				if ( ! existingSenderData ) {
-					setSender( {
-						senderName: layoutDefaults.senderName,
-						senderEmail: layoutDefaults.senderEmail,
-					} );
-				}
-			}
-			if ( layoutDefaults.newsletterData?.campaign?.recipients?.list_id ) {
-				const existingListId = newsletterData.campaign?.recipients?.list_id;
-				if ( ! existingListId ) {
-					setList( layoutDefaults.newsletterData?.campaign.recipients.list_id ).then( () => {
-						const subAudienceValue = getSubAudienceValue( layoutDefaults.newsletterData );
-						if ( subAudienceValue ) {
-							updateSegments( subAudienceValue );
-						}
-					} );
-				}
-			}
-		} catch ( e ) {
-			// Ignore it.
-		}
-	}, [ stringifiedLayoutDefaults.length ] );
 
 	if ( ! campaign ) {
 		return (

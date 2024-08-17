@@ -72,7 +72,6 @@ const Editor = compose( [
 			unlockPostAutosaving,
 			unlockPostSaving,
 			editPost,
-			savePost,
 		} = dispatch( 'core/editor' );
 		const { createNotice, removeNotice } = dispatch( 'core/notices' );
 		const { openModal } = dispatch( 'core/interface' );
@@ -85,7 +84,6 @@ const Editor = compose( [
 			createNotice,
 			removeNotice,
 			openModal,
-			savePost,
 			updateMetaValue: ( key, value ) => editPost( { meta: { [ key ]: value } } ),
 		};
 	} ),
@@ -109,12 +107,20 @@ const Editor = compose( [
 	} ) => {
 		const [ publishEl ] = useState( document.createElement( 'div' ) );
 
-		// Create alternate publish button
 		useEffect( () => {
+			// Create alternate publish button.
 			const publishButton = document.getElementsByClassName(
 				'editor-post-publish-button__button'
 			)[ 0 ];
 			publishButton.parentNode.insertBefore( publishEl, publishButton );
+
+			// Show async error messages.
+			if ( newspack_email_editor_data?.error_message ) {
+				createNotice( 'error', newspack_email_editor_data.error_message, {
+					id: 'newspack-newsletters-newsletter-async-error',
+					isDismissible: true,
+				} );
+			}
 		}, [] );
 
 		// Set color palette option.

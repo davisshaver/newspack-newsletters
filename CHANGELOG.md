@@ -1,3 +1,104 @@
+# [3.0.0](https://github.com/Automattic/newspack-newsletters/compare/v2.21.2...v3.0.0) (2024-08-13)
+
+
+### Bug Fixes
+
+* check for valid ID before post type check ([#1610](https://github.com/Automattic/newspack-newsletters/issues/1610)) ([96e21bc](https://github.com/Automattic/newspack-newsletters/commit/96e21bce7cb5beba199144a473fabb6c4169eb10))
+* update dependencies to support `@wordpress/scripts` ([#1530](https://github.com/Automattic/newspack-newsletters/issues/1530)) ([2d732f2](https://github.com/Automattic/newspack-newsletters/commit/2d732f21b192ad9151167f93a543c755cd2fa4a1))
+
+
+### Features
+
+* **campaign-monitor:** deprecation warning and environment constant for CM ([#1579](https://github.com/Automattic/newspack-newsletters/issues/1579)) ([e0374ac](https://github.com/Automattic/newspack-newsletters/commit/e0374ac025bcbb9cdcf3f706c45e4ce31a64ee81))
+
+
+### BREAKING CHANGES
+
+* Updates dependencies for compatibility with WordPress 6.6.*, but breaks JS in WordPress 6.5.* and below. If you need support for WP 6.5.*, please do not upgrade to this new major version.
+
+* chore: refactor for updating dependencies in newspack-scripts
+
+* refactor: use proxy script for eslint and stylelint scripts
+
+* fix: peer dependency conflicts
+
+* chore: update newspack-scripts to v5.6.0-alpha.3
+
+* chore: remove ajv dependency
+
+* chore: update lint-staged
+
+* chore: add .stylelintrc.js
+
+* chore: update newspack-scripts to v5.6.0-alpha.4
+
+* fix: package-lock.json
+
+* fix: reformat SCSS
+
+* fix: add missing Prettier config files
+
+* chore: update newspack-scripts to 5.6.0-alpha.5
+
+* chore: update newspack-scripts to v5.6.0-alpha.7
+
+* chore: update newspack-scripts to v5.6.0-alpha.8
+
+* chore: add NPM scripts for PHP
+
+* chore: update newspack-components to v3.0.0
+
+* chore: bump newspack-scripts to v5.5.2
+
+## [2.21.2](https://github.com/Automattic/newspack-newsletters/compare/v2.21.1...v2.21.2) (2024-08-12)
+
+
+### Bug Fixes
+
+* **data-report:** handle missing days in the data report ([#1591](https://github.com/Automattic/newspack-newsletters/issues/1591)) ([fa87cea](https://github.com/Automattic/newspack-newsletters/commit/fa87cea9fd0136b9dd33581ee77c6a8aa0b4377d))
+
+## [2.21.1](https://github.com/Automattic/newspack-newsletters/compare/v2.21.0...v2.21.1) (2024-08-01)
+
+
+### Bug Fixes
+
+* **layouts:** settings defaults from layout (mailchimp) ([766578a](https://github.com/Automattic/newspack-newsletters/commit/766578a8734f7f425567fb4c5553471e2c715623))
+
+# [2.21.0](https://github.com/Automattic/newspack-newsletters/compare/v2.20.4...v2.21.0) (2024-07-30)
+
+
+### Bug Fixes
+
+* error handling for Mailchimp `add_contact` method ([#1567](https://github.com/Automattic/newspack-newsletters/issues/1567)) ([eab0802](https://github.com/Automattic/newspack-newsletters/commit/eab08025540c43c07df2dd8bd434b11a049b9ec6))
+* nonexistent method, and don't remove the submit button (just the spinner) ([#1565](https://github.com/Automattic/newspack-newsletters/issues/1565)) ([c6bbc8b](https://github.com/Automattic/newspack-newsletters/commit/c6bbc8badddc1868a0ad9798eb11e989f4ce4742))
+* **recaptcha:** handle inactive recaptcha ([#1569](https://github.com/Automattic/newspack-newsletters/issues/1569)) ([dc72d91](https://github.com/Automattic/newspack-newsletters/commit/dc72d91c51311765a16b1f951f0663d0f6074ffc))
+
+
+### Features
+
+* **constant-contact:** enable subscription management in my account ([#1566](https://github.com/Automattic/newspack-newsletters/issues/1566)) ([cc79138](https://github.com/Automattic/newspack-newsletters/commit/cc79138969135c1df151a997716cd8aa2a05559f))
+
+## [2.20.4](https://github.com/Automattic/newspack-newsletters/compare/v2.20.3...v2.20.4) (2024-07-22)
+
+
+### Bug Fixes
+
+* avoid fatal when provider is manual ([b245716](https://github.com/Automattic/newspack-newsletters/commit/b24571600a34f91cb0f5be9714fe5db71f1e9c0a))
+
+## [2.20.3](https://github.com/Automattic/newspack-newsletters/compare/v2.20.2...v2.20.3) (2024-07-22)
+
+
+### Bug Fixes
+
+* sync newsletter campaigns on post meta update for all ESPs ([#1556](https://github.com/Automattic/newspack-newsletters/issues/1556)) ([6d028ff](https://github.com/Automattic/newspack-newsletters/commit/6d028ffc7e34101dd1fb30fd5c1d04736ce4ce78))
+
+## [2.20.2](https://github.com/Automattic/newspack-newsletters/compare/v2.20.1...v2.20.2) (2024-07-22)
+
+
+### Bug Fixes
+
+* **usage-reports:** fix MC usage reports backfill inflated counts ([#1554](https://github.com/Automattic/newspack-newsletters/issues/1554)) ([6befa73](https://github.com/Automattic/newspack-newsletters/commit/6befa73feda77c6fb43b78cfbc046584d6eac53f))
+
 ## [2.20.1](https://github.com/Automattic/newspack-newsletters/compare/v2.20.0...v2.20.1) (2024-07-15)
 
 
