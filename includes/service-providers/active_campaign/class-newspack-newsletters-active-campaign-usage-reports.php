@@ -29,6 +29,13 @@ class Newspack_Newsletters_Active_Campaign_Usage_Reports {
 	private $ac_instance;
 
 	/**
+	 * Number of campaigns to fetch in a single request.
+	 *
+	 * @var integer
+	 */
+	public $campaign_fetch_batch_size = 20;
+
+	/**
 	 * Constructor with dependency injection for the sake of tests.
 	 *
 	 * @param Newspack_Newsletters_Active_Campaign $active_campaign Active Campaign instance.
@@ -144,10 +151,14 @@ class Newspack_Newsletters_Active_Campaign_Usage_Reports {
 	 */
 	private function get_campaign_data( $last_n_days ) {
 		$last_campaigns_data = get_option( self::LAST_CAMPAIGNS_DATA_OPTION_NAME );
-		$campaigns_data      = self::get_default_campaign_data();
 
 		$current_campaign_data = $this->get_current_campaign_data( $last_n_days );
+		if ( \is_wp_error( $current_campaign_data ) ) {
+			return $current_campaign_data;
+		}
 		update_option( self::LAST_CAMPAIGNS_DATA_OPTION_NAME, $current_campaign_data );
+
+		$campaigns_data = self::get_default_campaign_data();
 
 		if ( ! $last_campaigns_data ) {
 			// No data about campaigns yet, so there is nothing to compare the new data with.
@@ -174,23 +185,50 @@ class Newspack_Newsletters_Active_Campaign_Usage_Reports {
 	 * @param int $last_n_days Number of last days to get the data about.
 	 */
 	private function get_current_campaign_data( $last_n_days ) {
-		$ac               = $this->ac_instance;
-		$params           = [
-			'query' => [
-				'limit'  => 100, // Assuming there will be no more than 100 campaigns in the requested period (last n days).
-				'orders' => [ 'sdate' => 'DESC' ],
-			],
-		];
-		$campaigns_result = $ac->api_v3_request( 'campaigns', 'GET', $params );
-		$cutoff_datetime  = strtotime( '-' . $last_n_days . ' days' );
+		$ac = $this->ac_instance;
 
-		if ( \is_wp_error( $campaigns_result ) ) {
-			return $campaigns_result;
+		$cutoff_datetime = strtotime( '-' . $last_n_days . ' days' );
+
+		// Avoid timeouts by fetching campaigns in batches.
+		$batch_size       = $this->campaign_fetch_batch_size;
+		$batch            = 0;
+		$campaigns_result = [];
+
+		while ( $batch < ceil( 100 / $batch_size ) ) { // Assuming there will be no more than 100 campaigns in the requested period (last n days).
+			$offset = $batch_size * $batch;
+			$params = [
+				'query' => [
+					'limit'  => $batch_size,
+					'offset' => $offset,
+					'orders' => [ 'sdate' => 'DESC' ],
+				],
+			];
+
+			$campaigns_response = $ac->api_v3_request( 'campaigns', 'GET', $params );
+
+			if ( \is_wp_error( $campaigns_response ) ) {
+				return $campaigns_response;
+			}
+
+			$campaigns_result = array_merge( $campaigns_result, $campaigns_response['campaigns'] );
+
+			// if oldest campaign is older than the cutoff date, break out.
+			$oldest_campaign = end( $campaigns_response['campaigns'] );
+			$campaign_send_date = strtotime( $oldest_campaign['sdate'] );
+			if ( $campaign_send_date < $cutoff_datetime ) {
+				break;
+			}
+
+			if ( count( $campaigns_response['campaigns'] ) < $batch_size ) {
+				break;
+			}
+
+			$batch++;
 		}
 
 		$campaigns_data = [];
 
-		foreach ( $campaigns_result['campaigns'] as $campaign ) {
+		foreach ( $campaigns_result as $campaign ) {
 			if (
 				! isset( $campaign['sdate'] )
 				|| 5 != $campaign['status'] // Status "5" is "completed. See https://www.activecampaign.com/api/example.php?call=campaign_list.

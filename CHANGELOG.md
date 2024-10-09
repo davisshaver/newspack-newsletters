@@ -1,3 +1,95 @@
+# [3.2.0](https://github.com/Automattic/newspack-newsletters/compare/v3.1.7...v3.2.0) (2024-10-08)
+
+
+### Bug Fixes
+
+* a typo that came after a refactor ([#1656](https://github.com/Automattic/newspack-newsletters/issues/1656)) ([0ae5b61](https://github.com/Automattic/newspack-newsletters/commit/0ae5b615e2123ca94ca84f795caaedbf2e4afc8b))
+* dont send metadata on subscribe ([#1648](https://github.com/Automattic/newspack-newsletters/issues/1648)) ([5b4a059](https://github.com/Automattic/newspack-newsletters/commit/5b4a0591bf91e82c9a9e83c19275c588c9a2426e))
+* handle missing Mailchimp API key ([83a0d6f](https://github.com/Automattic/newspack-newsletters/commit/83a0d6f124dd7ed6d4accadaf8403453384b11a8))
+* **mailchimp:** allow contacts to resubscribe after unsubscribing ([#1654](https://github.com/Automattic/newspack-newsletters/issues/1654)) ([b76dbc2](https://github.com/Automattic/newspack-newsletters/commit/b76dbc2fefc67244084a060908abcf86bc11e70d))
+* **phpcs:** specify path in custom ruleset ref ([#1637](https://github.com/Automattic/newspack-newsletters/issues/1637)) ([28f5b50](https://github.com/Automattic/newspack-newsletters/commit/28f5b509c7eedaa64db283539d604154cca8ce8a))
+
+
+### Features
+
+* **mailchimp:** parse contact name into merge fields ([#1628](https://github.com/Automattic/newspack-newsletters/issues/1628)) ([aeba65a](https://github.com/Automattic/newspack-newsletters/commit/aeba65aaefbf4aaf29ff18914f94d060d407fa14))
+* **styling:** list styles ([e9ea4dd](https://github.com/Automattic/newspack-newsletters/commit/e9ea4dddd18671606fee38bb7affad51a4cbe69f)), closes [#1335](https://github.com/Automattic/newspack-newsletters/issues/1335)
+
+
+### Reverts
+
+* "chore(deps-dev): bump @wordpress/browserslist-config from 6.5.0 to 6.6.0" ([f08f271](https://github.com/Automattic/newspack-newsletters/commit/f08f271582750069cd38783f524dfdc9fd5d002e))
+
+## [3.1.7](https://github.com/Automattic/newspack-newsletters/compare/v3.1.6...v3.1.7) (2024-10-08)
+
+
+### Bug Fixes
+
+* dynamically fetch message ID in tests ([#1666](https://github.com/Automattic/newspack-newsletters/issues/1666)) ([fd31f61](https://github.com/Automattic/newspack-newsletters/commit/fd31f61c8393ffe69f1c41ab874b0f6fb8f36cc7))
+
+## [3.1.6](https://github.com/Automattic/newspack-newsletters/compare/v3.1.5...v3.1.6) (2024-09-18)
+
+
+### Bug Fixes
+
+* automatically retry failed scheduled sends ([#1660](https://github.com/Automattic/newspack-newsletters/issues/1660)) ([e0cca64](https://github.com/Automattic/newspack-newsletters/commit/e0cca64305df9380fd0cda91f68e61bee840f52e))
+
+## [3.1.5](https://github.com/Automattic/newspack-newsletters/compare/v3.1.4...v3.1.5) (2024-09-16)
+
+
+### Bug Fixes
+
+* **cc:** urlencode query args before passing to CC API ([#1659](https://github.com/Automattic/newspack-newsletters/issues/1659)) ([4f645d2](https://github.com/Automattic/newspack-newsletters/commit/4f645d251e07ed0142f8111aa8e5f667639c9f81))
+
+## [3.1.4](https://github.com/Automattic/newspack-newsletters/compare/v3.1.3...v3.1.4) (2024-09-12)
+
+
+### Bug Fixes
+
+* handle encoded URLs and block patterns in redirect check ([#1635](https://github.com/Automattic/newspack-newsletters/issues/1635)) ([2fa5d16](https://github.com/Automattic/newspack-newsletters/commit/2fa5d166e3794abdb5242a5e82ed0528f14eaaba))
+
+## [3.1.3](https://github.com/Automattic/newspack-newsletters/compare/v3.1.2...v3.1.3) (2024-09-12)
+
+
+### Bug Fixes
+
+* active campaign usage report, fetch campaigns in batches ([#1649](https://github.com/Automattic/newspack-newsletters/issues/1649)) ([e8a4155](https://github.com/Automattic/newspack-newsletters/commit/e8a415534f7a2db0c7a308c47792d9583af7cc0a))
+
+## [3.1.2](https://github.com/Automattic/newspack-newsletters/compare/v3.1.1...v3.1.2) (2024-09-09)
+
+
+### Bug Fixes
+
+* **mailchimp:** remove cache and improve logs when preparing merge fields ([029d92c](https://github.com/Automattic/newspack-newsletters/commit/029d92cae324525758e0c134454c2c2a13721776))
+
+## [3.1.1](https://github.com/Automattic/newspack-newsletters/compare/v3.1.0...v3.1.1) (2024-09-04)
+
+
+### Bug Fixes
+
+* error handling, tests, CI builds ([#1641](https://github.com/Automattic/newspack-newsletters/issues/1641), [#1642](https://github.com/Automattic/newspack-newsletters/issues/1642)) ([791fdc3](https://github.com/Automattic/newspack-newsletters/commit/791fdc3f8dc2c32ccafe7acea0413acf1440c1bd))
+
+# [3.1.0](https://github.com/Automattic/newspack-newsletters/compare/v3.0.1...v3.1.0) (2024-08-26)
+
+
+### Bug Fixes
+
+* add preview text fallback to make sure HTML is removed ([b4de251](https://github.com/Automattic/newspack-newsletters/commit/b4de25185894d88b51ea7c1fe7a8c2918c12ce18))
+* human-readable timestamp of sent newsletters ([#1590](https://github.com/Automattic/newspack-newsletters/issues/1590)) ([c3ddd29](https://github.com/Automattic/newspack-newsletters/commit/c3ddd29b667151b88402931249c6c2939746836e))
+* **subscription-block:** remove default list when misconfigured ([#1608](https://github.com/Automattic/newspack-newsletters/issues/1608)) ([6d0b440](https://github.com/Automattic/newspack-newsletters/commit/6d0b440d71bf09275ada4b0e15faf2781dd6f823))
+
+
+### Features
+
+* consolidate data flows ([#1602](https://github.com/Automattic/newspack-newsletters/issues/1602)) ([dd56ab8](https://github.com/Automattic/newspack-newsletters/commit/dd56ab89c8a03c7bfb4c3abd1c31b8cb66a0c89f)), closes [#1567](https://github.com/Automattic/newspack-newsletters/issues/1567) [#1593](https://github.com/Automattic/newspack-newsletters/issues/1593) [#1601](https://github.com/Automattic/newspack-newsletters/issues/1601)
+
+## [3.0.1](https://github.com/Automattic/newspack-newsletters/compare/v3.0.0...v3.0.1) (2024-08-19)
+
+
+### Bug Fixes
+
+* **mailchimp:** selecting mailchimp segments with groups ([#1600](https://github.com/Automattic/newspack-newsletters/issues/1600)) ([a698aaa](https://github.com/Automattic/newspack-newsletters/commit/a698aaa2940a425416324fd7f0266eedc22dc2b1))
+
 # [3.0.0](https://github.com/Automattic/newspack-newsletters/compare/v2.21.2...v3.0.0) (2024-08-13)
 
 

@@ -17,6 +17,8 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 
 	const BASE_NAMESPACE = 'newspack-newsletters/v1/';
 
+	const MAX_SCHEDULED_RETRIES = 10;
+
 	/**
 	 * The controller.
 	 *
@@ -187,14 +189,78 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 			return;
 		}
 
+		// Handle scheduled newsletters.
 		if ( in_array( $new_status, self::$controlled_statuses, true ) && 'future' === $old_status ) {
 			update_post_meta( $post->ID, 'sending_scheduled', true );
 			$result = $this->send_newsletter( $post );
 			if ( is_wp_error( $result ) ) {
+				$this->add_send_error( $post->ID, $result );
+				$send_errors   = get_post_meta( $post->ID, 'newsletter_send_errors', true );
+				$send_attempts = is_array( $send_errors ) ? count( $send_errors ) : 0;
+
+				// If we've already tried to send this post too many times, give up.
+				if ( self::MAX_SCHEDULED_RETRIES <= $send_attempts ) {
+					wp_update_post(
+						[
+							'ID'          => $post->ID,
+							'post_status' => 'draft',
+						]
+					);
+					$max_attempts = new WP_Error(
+						'newspack_newsletter_send_error',
+						sprintf(
+							// Translators: An error message to explain that the scheduled send failed the maximum number times and won't be retried automatically.
+							__( 'Failed to send %d times. Please check the provider connection and try sending again.', 'newspack-newsletters' ),
+							self::MAX_SCHEDULED_RETRIES
+						)
+					);
+					$this->add_send_error( $post->ID, $max_attempts );
+					do_action(
+						'newspack_log',
+						'newspack_esp_scheduled_send_error',
+						sprintf(
+							'Maximum send attempts hit for post ID: %d',
+							$post->ID
+						),
+						[
+							'type'       => 'error',
+							'data'       => [
+								'provider' => $this->service,
+								'errors'   => $result->get_error_message(),
+							],
+							'user_email' => '',
+							'file'       => 'newspack_' . $this->service,
+						]
+					);
+					wp_die( esc_html( $max_attempts->get_error_message() ), '', esc_html( $max_attempts->get_error_code() ) );
+				}
+
+				// Schedule a retry with exponential backoff maxed to 12 hours.
+				$delay = min( 720, pow( 2, $send_attempts ) );
 				wp_update_post(
 					[
-						'ID'          => $post->ID,
-						'post_status' => 'draft',
+						'ID'            => $post->ID,
+						'post_date'     => gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'Y-m-d H:i:s' ) . ' +' . $delay . ' minutes ' ) ),
+						'post_date_gmt' => gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'Y-m-d H:i:s', true ) . ' +' . $delay . ' minutes ' ) ),
+						'post_status'   => 'future', // Reset status to `future` so the newspack_scheduled_post_checker job retries it.
+					]
+				);
+
+				do_action(
+					'newspack_log',
+					'newspack_esp_scheduled_send_error',
+					sprintf(
+						'Error sending scheduled newsletter ID: %d',
+						$post->ID
+					),
+					[
+						'type'       => 'error',
+						'data'       => [
+							'provider' => $this->service,
+							'errors'   => $result->get_error_message(),
+						],
+						'user_email' => '',
+						'file'       => 'newspack_' . $this->service,
 					]
 				);
 				wp_die( esc_html( $result->get_error_message() ), '', esc_html( $result->get_error_code() ) );
@@ -340,6 +406,26 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 	}
 
 	/**
+	 * Add send errors to the post.
+	 *
+	 * @param int      $post_id The post ID.
+	 * @param WP_Error $error The WP_Error object to add.
+	 */
+	public function add_send_error( $post_id, $error ) {
+		$existing_errors = get_post_meta( $post_id, 'newsletter_send_errors', true );
+		if ( ! is_array( $existing_errors ) ) {
+			$existing_errors = [];
+		}
+		$error_message = $error->get_error_message();
+		$existing_errors[] = [
+			'timestamp' => time(),
+			'message'   => $error_message,
+		];
+		$existing_errors   = array_slice( $existing_errors, -10, 10, true );
+		update_post_meta( $post_id, 'newsletter_send_errors', $existing_errors );
+	}
+
+	/**
 	 * Send a newsletter.
 	 *
 	 * @param WP_Post $post The newsletter post.
@@ -364,20 +450,21 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 		}
 
 		if ( \is_wp_error( $result ) ) {
-			$errors = get_post_meta( $post_id, 'newsletter_send_errors', true );
-			if ( ! is_array( $errors ) ) {
-				$errors = [];
-			}
-			$error_message = $result->get_error_message();
-			$errors[] = [
-				'timestamp' => time(),
-				'message'   => $error_message,
-			];
-			$errors   = array_slice( $errors, -10, 10, true );
-			update_post_meta( $post_id, 'newsletter_send_errors', $errors );
+			$this->add_send_error( $post_id, $result );
 
 			$email_sending_disabled = defined( 'NEWSPACK_NEWSLETTERS_DISABLE_SEND_FAILURE_EMAIL' ) && NEWSPACK_NEWSLETTERS_DISABLE_SEND_FAILURE_EMAIL;
+
+			$is_scheduled  = get_post_meta( $post->ID, 'sending_scheduled', true );
+			$send_errors   = get_post_meta( $post->ID, 'newsletter_send_errors', true );
+			$send_attempts = is_array( $send_errors ) ? count( $send_errors ) : 0;
+
+			// For scheduled sends with auto-retry, only send an email on the last failed send attempt.
+			if ( $is_scheduled && self::MAX_SCHEDULED_RETRIES > $send_attempts ) {
+				$email_sending_disabled = true;
+			}
+
 			if ( ! $email_sending_disabled ) {
+				$errors  = is_array( $send_errors ) ? implode( PHP_EOL, array_column( $send_errors, 'message' ) ) : $result->get_error_message();
 				$message = sprintf(
 					/* translators: %1$s is the campaign title, %2$s is the edit link, %3$s is the error message. */
 					__(
@@ -385,20 +472,22 @@ abstract class Newspack_Newsletters_Service_Provider implements Newspack_Newslet
 
 A newsletter campaign called "%1$s" failed to send on your site.
 
-You can edit the campaign here: %2$s.
+You can edit the campaign here: %2$s
 
-Details of the error message: "%3$s"
+Error message(s) received:
+
+%3$s
 	',
 						'newspack-newsletters'
 					),
 					$post->post_title,
-					get_edit_post_link( $post_id ),
-					$error_message
+					admin_url( 'post.php?post=' . $post_id . '&action=edit' ),
+					$errors
 				);
 
 				\wp_mail( // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.wp_mail_wp_mail
 					get_option( 'admin_email' ),
-					__( 'Sending a newsletter failed', 'newspack-newsletters' ),
+					__( 'ERROR: Sending a newsletter failed', 'newspack-newsletters' ),
 					$message
 				);
 			}
@@ -469,36 +558,71 @@ Details of the error message: "%3$s"
 	}
 
 	/**
-	 * Handle adding to local lists.
-	 * If the $list_id is a local list, a tag will be added to the contact.
+	 * Upserts a contact to the ESP using the provider specific methods.
 	 *
-	 * @param array  $contact      {
-	 *    Contact data.
+	 * Note: Mailchimp overrides this method.
+	 *
+	 * @param array               $contact      {
+	 *               Contact data.
 	 *
 	 *    @type string   $email    Contact email address.
 	 *    @type string   $name     Contact name. Optional.
 	 *    @type string[] $metadata Contact additional metadata. Optional.
 	 * }
-	 * @param string $list_id      List to add the contact to.
+	 * @param Subscription_List[] $lists The lists.
+	 * @return array|WP_Error Contact data if it was added, or error otherwise.
+	 */
+	public function upsert_contact( $contact, $lists ) {
+
+		if ( empty( $lists ) ) {
+			return $this->add_contact( $contact );
+		}
+
+		foreach ( $lists as $list ) {
+			if ( $list->is_local() ) {
+				$result = $this->add_contact_to_local_list( $contact, $list );
+			} else {
+				$result = $this->add_contact( $contact, $list->get_public_id() );
+			}
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
+		}
+
+		// on success, return the last result.
+		return $result;
+	}
+
+	/**
+	 * Handle adding to local lists.
+	 * If the $list_id is a local list, a tag will be added to the contact.
+	 *
+	 * @param array             $contact      {
+	 *               Contact data.
+	 *
+	 *    @type string   $email    Contact email address.
+	 *    @type string   $name     Contact name. Optional.
+	 *    @type string[] $metadata Contact additional metadata. Optional.
+	 * }
+	 * @param Subscription_List $list      The list object.
 	 *
 	 * @return true|WP_Error True or error.
 	 */
-	public function add_contact_handling_local_list( $contact, $list_id ) {
+	protected function add_contact_to_local_list( $contact, Subscription_List $list ) {
 		if ( ! static::$support_local_lists ) {
 			return true;
 		}
-		if ( Subscription_List::is_local_form_id( $list_id ) ) {
-			try {
-				$list = Subscription_List::from_form_id( $list_id );
-				if ( ! $list->is_configured_for_provider( $this->service ) ) {
-					return new WP_Error( 'List not properly configured for the provider' );
-				}
-				$list_settings = $list->get_provider_settings( $this->service );
-				return $this->add_esp_local_list_to_contact( $contact['email'], $list_settings['tag_id'], $list_settings['list'] );
-			} catch ( \InvalidArgumentException $e ) {
-				return new WP_Error( 'List not found' );
-			}
+
+		if ( ! $list->is_local() ) {
+			return new WP_Error( 'newspack_newsletters_list_not_local', "List {$list->get_public_id()} is not a local list" );
 		}
+
+		if ( ! $list->is_configured_for_provider( $this->service ) ) {
+			return new WP_Error( 'newspack_newsletters_list_not_configured_for_provider', "List $list_id not properly configured for the provider" );
+		}
+
+		$list_settings = $list->get_provider_settings( $this->service );
+		return $this->add_esp_local_list_to_contact( $contact['email'], $list_settings['tag_id'], $list_settings['list'] );
 	}
 
 	/**
@@ -509,15 +633,16 @@ Details of the error message: "%3$s"
 	 * @param string   $email           Contact email address.
 	 * @param string[] $lists_to_add    Array of list IDs to subscribe the contact to.
 	 * @param string[] $lists_to_remove Array of list IDs to remove the contact from.
+	 * @param string   $context         The context in which the update is being performed. For logging purposes.
 	 *
 	 * @return true|WP_Error True if the contact was updated or error.
 	 */
-	public function update_contact_lists_handling_local( $email, $lists_to_add = [], $lists_to_remove = [] ) {
+	public function update_contact_lists_handling_local( $email, $lists_to_add = [], $lists_to_remove = [], $context = 'Unknown' ) {
 		$contact = $this->get_contact_data( $email );
 		if ( is_wp_error( $contact ) ) {
 			// Create contact.
-			// Use Newspack_Newsletters_Subscription::add_contact to trigger hooks and call add_contact_handling_local_list if needed.
-			$result = Newspack_Newsletters_Subscription::add_contact( [ 'email' => $email ], $lists_to_add );
+			// Use Newspack_Newsletters_Contacts::upsert to trigger hooks and call add_contact_handling_local_list if needed.
+			$result = Newspack_Newsletters_Contacts::upsert( [ 'email' => $email ], $lists_to_add, $context );
 			if ( is_wp_error( $result ) ) {
 				return $result;
 			}
@@ -544,11 +669,11 @@ Details of the error message: "%3$s"
 	 * @param string $action The action to be performed. add or remove.
 	 * @return array|WP_Error The remaining lists that were not handled by this method, because they are not local lists.
 	 */
-	public function update_contact_local_lists( $email, $lists = [], $action = 'add' ) {
+	protected function update_contact_local_lists( $email, $lists = [], $action = 'add' ) {
 		foreach ( $lists as $key => $list_id ) {
-			if ( Subscription_List::is_local_form_id( $list_id ) ) {
+			if ( Subscription_List::is_local_public_id( $list_id ) ) {
 				try {
-					$list = Subscription_List::from_form_id( $list_id );
+					$list = Subscription_List::from_public_id( $list_id );
 
 					if ( ! $list->is_configured_for_provider( $this->service ) ) {
 						return new WP_Error( 'List not properly configured for the provider' );
@@ -590,7 +715,7 @@ Details of the error message: "%3$s"
 			}
 			$list_settings = $list->get_provider_settings( $this->service );
 			if ( in_array( $list_settings['tag_id'], $tags, false ) ) { // phpcs:ignore WordPress.PHP.StrictInArray.FoundNonStrictFalse
-				$ids[] = $list->get_form_id();
+				$ids[] = $list->get_public_id();
 			}
 		}
 		return $ids;

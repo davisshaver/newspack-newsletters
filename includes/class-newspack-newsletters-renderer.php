@@ -1012,8 +1012,13 @@ final class Newspack_Newsletters_Renderer {
 			 * Embed block.
 			 */
 			case 'core/embed':
-				$oembed = _wp_oembed_get_object();
-				$data   = $oembed->get_data( $attrs['url'] );
+				/**
+				 * Filters the retrieval of the WP oEmbed object. Used for testing purposes
+				 *
+				 * @param WP_oEmbed $oembed WP_oEmbed object.
+				 */
+				$oembed = apply_filters( 'newspack_newsletters_get_oembed_object', _wp_oembed_get_object() );
+				$data = $oembed->get_data( $attrs['url'] );
 
 				if ( ! $data || empty( $data->type ) ) {
 					break;
@@ -1063,7 +1068,7 @@ final class Newspack_Newsletters_Renderer {
 							'height' => $data->height,
 							'href'   => $attrs['url'],
 						);
-						$markup   .= '<mj-image ' . self::array_to_attributes( $img_attrs ) . ' />';
+						$markup .= '<mj-image ' . self::array_to_attributes( $img_attrs ) . ' />';
 						if ( ! empty( $caption ) ) {
 							$markup .= '<mj-text ' . self::array_to_attributes( $caption_attrs ) . '>' . esc_html( $caption ) . ' - ' . esc_html( $data->provider_name ) . '</mj-text>';
 						}
@@ -1266,6 +1271,9 @@ final class Newspack_Newsletters_Renderer {
 		$background_color = get_post_meta( $post->ID, 'background_color', true );
 		$preview_text     = get_post_meta( $post->ID, 'preview_text', true );
 		$custom_css       = get_post_meta( $post->ID, 'custom_css', true );
+		if ( ! $preview_text ) {
+			$preview_text = wp_trim_words( wp_strip_all_tags( $body ), 60 );
+		}
 		if ( ! $background_color ) {
 			$background_color = '#ffffff';
 		}

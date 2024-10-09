@@ -86,6 +86,9 @@ final class Newspack_Newsletters_Constant_Contact_SDK {
 		}
 		$url = $this->base_uri . $path;
 		if ( isset( $options['query'] ) ) {
+			foreach ( $options['query'] as $key => $value ) {
+				$options['query'][ $key ] = urlencode( $value );
+			}
 			$url = add_query_arg( $options['query'], $url );
 			unset( $options['query'] );
 		}
@@ -644,7 +647,7 @@ final class Newspack_Newsletters_Constant_Contact_SDK {
 	public function upsert_contact( $email_address, $data = [] ) {
 		$contact = $this->get_contact( $email_address );
 		$body    = [];
-		if ( $contact ) {
+		if ( $contact && ! \is_wp_error( $contact ) ) {
 			$body = [
 				'email_address'    => get_object_vars( $contact->email_address ),
 				'list_memberships' => $contact->list_memberships,
