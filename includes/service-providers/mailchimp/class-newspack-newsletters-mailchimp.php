@@ -62,7 +62,7 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 		add_action( 'updated_post_meta', [ $this, 'save' ], 10, 4 );
 		add_action( 'wp_trash_post', [ $this, 'trash' ], 10, 1 );
 		add_filter( 'newspack_newsletters_process_link', [ $this, 'process_link' ], 10, 2 );
-
+		add_filter( 'newspack_newsletters_add_contact_reader_error_message', [ $this, 'reader_error_message' ], 10, 3 );
 		add_action( 'newspack_newsletters_subscription_lists_metabox_after_tag', [ $this, 'lists_metabox_notice' ] );
 
 		parent::__construct( $this );
@@ -1411,16 +1411,32 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 	}
 
 	/**
+	 * Filters the error message shown to readers when an error occurs.
+	 *
+	 * @param string $reader_error The default error message.
+	 * @param array  $params Additional information about the request that triggered the error.
+	 * @param mixed  $raw_error Raw error data from the ESP's API. This can vary depending on the provider.
+	 *
+	 * @return string The filtered error message.
+	 */
+	public function reader_error_message( $reader_error, $params, $raw_error ) {
+		// Handle special case where a user is in compliance state.
+		if ( is_wp_error( $raw_error ) && false !== strpos( $raw_error->get_error_message(), 'Member In Compliance State' ) ) {
+			$reader_error = __( "We'll need to subscribe this email address manually. Please contact our support team.", 'newspack-newsletters' );
+		}
+		return $reader_error;
+	}
+
+	/**
 	 * Throw an Exception if Mailchimp response indicates an error.
 	 *
 	 * @param Object $result Result of the Mailchimp operation.
 	 * @param String $preferred_error Error message to show to readers instead of showing Mailchimp API errors.
-	 * @param String $email_address Email address, for debugging purposes.
 	 * @throws Exception Error message.
 	 * @return The results of the API call.
 	 */
-	public function validate( $result, $preferred_error = null, $email_address = '' ) {
-		$default_error = __( 'Sorry, a Mailchimp error has occurred. Please try again later or contact us for support.', 'newspack-newsletters' );
+	public function validate( $result, $preferred_error = null ) {
+		$default_error = __( 'An unknown Mailchimp error occurred.', 'newspack-newsletters' );
 		if ( ! $preferred_error ) {
 			$preferred_error = $default_error;
 		}
@@ -1430,6 +1446,9 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 		// See Mailchimp error code glossary: https://mailchimp.com/developer/marketing/docs/errors/#error-glossary.
 		if ( ! empty( $result['status'] ) && (int) $result['status'] >= 400 ) {
 			$messages = [];
+			if ( ! empty( $result['title'] ) ) {
+				$messages[] = $result['title'] . ':';
+			}
 			if ( ! empty( $result['errors'] ) ) {
 				foreach ( $result['errors'] as $error ) {
 					if ( ! empty( $error['message'] ) ) {
@@ -1441,32 +1460,10 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 				$messages[] = $result['detail'];
 			}
 			if ( ! count( $messages ) ) {
-				$message[] = $preferred_error;
+				$messages[] = $preferred_error;
 			}
 
-			// Log the error with any details returned from the API.
-			do_action(
-				'newspack_log',
-				'newspack_mailchimp_api_error',
-				'Error adding contact to Mailchimp.',
-				[
-					'type'       => 'error',
-					'data'       => [
-						'messages' => $messages,
-						'status'   => $result['status'],
-						'title'    => ! empty( $result['title'] ) ? $result['title'] : '',
-					],
-					'user_email' => $email_address,
-					'file'       => 'newspack_mailchimp',
-				]
-			);
-
-			if ( Newspack_Newsletters::debug_mode() ) {
-				// Show the "real" error message(s) if in debug mode.
-				throw new Exception( esc_html( implode( ' ', $messages ) ) );
-			} else {
-				throw new Exception( esc_html( $preferred_error ) );
-			}
+			throw new Exception( esc_html( implode( ' ', $messages ) ), ! empty( $result['status'] ) ? intval( $result['status'] ) : 400 );
 		}
 		return $result;
 	}
@@ -1734,6 +1731,16 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 	 * @return array The status and/or status_if_new keys to be added to the payload
 	 */
 	private function get_status_for_payload( $contact, $list_id = null ) {
+		if ( $list_id && ! empty( $contact['existing_contact_data']['lists'][ $list_id ]['status'] ) ) {
+			$status = $contact['existing_contact_data']['lists'][ $list_id ]['status'];
+			if ( 'unsubscribed' === $status ) {
+				// Check if the contact has unsubscribed before. Mailchimp requires a double opt-in to resubscribe, so we set the status to 'pending'.
+				return [ 'status' => 'pending' ];
+			} else {
+				// Otherwise we set the status to the existing status.
+				return [ 'status' => $status ];
+			}
+		}
 		$return = [];
 		if ( ! empty( $contact['metadata']['status_if_new'] ) ) {
 			$return['status_if_new'] = $contact['metadata']['status_if_new'];
@@ -1741,11 +1748,6 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 
 		if ( ! empty( $contact['metadata']['status'] ) ) {
 			$return['status'] = $contact['metadata']['status'];
-		}
-
-		// Check if the contact has unsubscribed before. Mailchimp requires a double opt-in to resubscribe, so we set the status to 'pending'.
-		if ( $list_id && ! empty( $contact['existing_contact_data']['lists'][ $list_id ]['status'] ) && 'unsubscribed' === $contact['existing_contact_data']['lists'][ $list_id ]['status'] ) {
-			$return['status'] = 'pending';
 		}
 
 		// If we're subscribing the contact to a newsletter, they should have some status
@@ -1779,7 +1781,6 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 			return new WP_Error( 'newspack_newsletters_mailchimp_list_id', __( 'Missing list id.' ) );
 		}
 		$email_address = $contact['email'];
-
 		// If contact was added in this execution, we can return the previous
 		// result and bail.
 		$cache_key = md5( $list_id . $email_address . wp_json_encode( $tags ) . wp_json_encode( $interests ) );
@@ -1788,7 +1789,6 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 		}
 
 		$update_payload = [ 'email_address' => $email_address ];
-
 		$update_payload = array_merge(
 			$update_payload,
 			$this->get_status_for_payload( $contact, $list_id )
@@ -1804,7 +1804,6 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 		}
 
 		try {
-
 			$mc = new Mailchimp( $this->api_key() );
 
 			if ( isset( $contact['metadata'] ) && is_array( $contact['metadata'] ) && ! empty( $contact['metadata'] ) ) {
@@ -1833,18 +1832,61 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 
 			// Create or update a list member.
 			$member_hash  = Mailchimp::subscriberHash( $email_address );
-			$reader_error = $this->get_add_contact_reader_error_message(
+			$result       = $this->validate(
+				$mc->put( "lists/$list_id/members/$member_hash", $update_payload ),
+				null,
 				[
-					'email'     => $contact['email'],
+					'email'     => $email_address,
 					'list_id'   => $list_id,
 					'tags'      => $tags,
 					'interests' => $interests,
 				]
 			);
-			$result       = $this->validate( $mc->put( "lists/$list_id/members/$member_hash", $update_payload ), $reader_error, $email_address );
+
+			// Mailchimp will only allow subscribed contacts to update the email address field, so to work around this for unsubscribed accounts
+			// we are instead creating a new contact (via the request above), archiving the old one, then creating notes linking both contacts.
+			$existing_email_address = isset( $contact['existing_contact_data']['email_address'] ) ? $contact['existing_contact_data']['email_address'] : null;
+			if ( $existing_email_address && $existing_email_address !== $email_address ) {
+				$existing_member_hash = Mailchimp::subscriberHash( $existing_email_address );
+				$this->validate(
+					$mc->post(
+						"lists/$list_id/members/$existing_member_hash/notes",
+						[
+							'note' => sprintf(
+								// Translators: 1 is a hash value representing the contact's new ID. 2 is the contact's new email address.
+								__( 'Contact requested email change. Migrated to %1$s (%2$s).', 'newspack-newsletters' ),
+								$member_hash,
+								$email_address
+							),
+						]
+					),
+					$reader_error,
+					$existing_email_address
+				);
+				$this->validate(
+					$mc->post(
+						"lists/$list_id/members/$member_hash/notes",
+						[
+							'note' => sprintf(
+								// Translators: 1 is a hash value representing the contact's previous ID. 2 is the contact's previous email address.
+								__( 'Contact requested email change. Migrated from %1$s (%2$s).', 'newspack-newsletters' ),
+								$existing_member_hash,
+								$existing_email_address
+							),
+						]
+					),
+					$reader_error,
+					$existing_email_address
+				);
+				$this->validate(
+					$mc->delete( "lists/$list_id/members/$existing_member_hash" ),
+					$reader_error,
+					$existing_email_address
+				);
+			}
 		} catch ( \Exception $e ) {
 			return new \WP_Error(
-				'newspack_newsletters_mailchimp_add_contact_failed',
+				'newspack_newsletters_mailchimp_api_error',
 				$e->getMessage()
 			);
 		}
@@ -1986,48 +2028,55 @@ final class Newspack_Newsletters_Mailchimp extends \Newspack_Newsletters_Service
 	 * @return array|WP_Error Response or error if contact was not found.
 	 */
 	public function get_contact_data( $email, $return_details = false ) {
-		$mc    = new Mailchimp( $this->api_key() );
-		$result  = $mc->get(
-			'search-members',
-			[
-				'query' => $email,
-			]
-		);
+		try {
+			$mc    = new Mailchimp( $this->api_key() );
+			$result  = $mc->get(
+				'search-members',
+				[
+					'query' => $email,
+				]
+			);
 
-		if ( ! isset( $result['exact_matches']['members'] ) ) {
-			return new WP_Error( 'newspack_newsletters_mailchimp_search_members', __( 'Error reaching to search-members endpoint', 'newspack-newsletters' ) );
-		}
+			if ( ! isset( $result['exact_matches']['members'] ) ) {
+				return new WP_Error( 'newspack_newsletters_mailchimp_search_members', __( 'Error reaching to search-members endpoint', 'newspack-newsletters' ) );
+			}
 
-		$found = $result['exact_matches']['members'];
-		if ( empty( $found ) ) {
-			return new WP_Error( 'newspack_newsletters_mailchimp_contact_not_found', __( 'Contact not found', 'newspack-newsletters' ) );
-		}
+			$found = $result['exact_matches']['members'];
+			if ( empty( $found ) ) {
+				return new WP_Error( 'newspack_newsletters_mailchimp_contact_not_found', __( 'Contact not found', 'newspack-newsletters' ) );
+			}
 
-		$keys = [ 'full_name', 'email_address', 'id' ];
-		$data = [
-			'lists'     => [],
-			'tags'      => [],
-			'interests' => [],
-		];
-		foreach ( $found as $contact ) {
-			foreach ( $keys as $key ) {
-				if ( ! isset( $data[ $key ] ) || empty( $data[ $key ] ) ) {
-					$data[ $key ] = $contact[ $key ];
-				}
-			}
-			if ( isset( $contact['tags'] ) ) {
-				$data['tags'][ $contact['list_id'] ] = $contact['tags'];
-			}
-			if ( isset( $contact['interests'] ) ) {
-				$data['interests'][ $contact['list_id'] ] = $contact['interests'];
-			}
-			$data['lists'][ $contact['list_id'] ] = [
-				'id'         => $contact['id'], // md5 hash of email.
-				'contact_id' => $contact['contact_id'],
-				'status'     => $contact['status'],
+			$keys = [ 'full_name', 'email_address', 'id' ];
+			$data = [
+				'lists'     => [],
+				'tags'      => [],
+				'interests' => [],
 			];
+			foreach ( $found as $contact ) {
+				foreach ( $keys as $key ) {
+					if ( ! isset( $data[ $key ] ) || empty( $data[ $key ] ) ) {
+						$data[ $key ] = $contact[ $key ];
+					}
+				}
+				if ( isset( $contact['tags'] ) ) {
+					$data['tags'][ $contact['list_id'] ] = $contact['tags'];
+				}
+				if ( isset( $contact['interests'] ) ) {
+					$data['interests'][ $contact['list_id'] ] = $contact['interests'];
+				}
+				$data['lists'][ $contact['list_id'] ] = [
+					'id'         => $contact['id'], // md5 hash of email.
+					'contact_id' => $contact['contact_id'],
+					'status'     => $contact['status'],
+				];
+			}
+			return $data;
+		} catch ( \Exception $e ) {
+			return new WP_Error(
+				'newspack_newsletters_mailchimp_get_contact_data_failed',
+				$e->getMessage()
+			);
 		}
-		return $data;
 	}
 
 	/**
