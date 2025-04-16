@@ -1,3 +1,36 @@
+# [3.12.0](https://github.com/Automattic/newspack-newsletters/compare/v3.11.4...v3.12.0) (2025-04-14)
+
+
+### Bug Fixes
+
+* update social icon editor CSS selector for WP 6.8 ([#1790](https://github.com/Automattic/newspack-newsletters/issues/1790)) ([0f253f9](https://github.com/Automattic/newspack-newsletters/commit/0f253f9a4b1d3e75f2b12049bc1dd5e9b6d0cc69))
+
+
+### Features
+
+* add POT file to the plugin ([#1789](https://github.com/Automattic/newspack-newsletters/issues/1789)) ([f3d0066](https://github.com/Automattic/newspack-newsletters/commit/f3d0066e04ae8f0a499e4858fbff9e58727044aa))
+
+## [3.11.4](https://github.com/Automattic/newspack-newsletters/compare/v3.11.3...v3.11.4) (2025-04-11)
+
+
+### Bug Fixes
+
+* **local-lists:** create contact if adding to local lists only ([#1801](https://github.com/Automattic/newspack-newsletters/issues/1801)) ([08f788a](https://github.com/Automattic/newspack-newsletters/commit/08f788a3125d2669cadfe41cce5bee7b200247a3))
+
+## [3.11.3](https://github.com/Automattic/newspack-newsletters/compare/v3.11.2...v3.11.3) (2025-04-08)
+
+
+### Bug Fixes
+
+* **ads:** separate sort by position logic ([f473d1e](https://github.com/Automattic/newspack-newsletters/commit/f473d1e012a095e00783aa9c1fe28a96c145d383))
+
+## [3.11.2](https://github.com/Automattic/newspack-newsletters/compare/v3.11.1...v3.11.2) (2025-04-07)
+
+
+### Bug Fixes
+
+* **ads:** prevent ads with same position from replacing each other ([#1794](https://github.com/Automattic/newspack-newsletters/issues/1794)) ([b77d82f](https://github.com/Automattic/newspack-newsletters/commit/b77d82f1b7a3432741ef20599fb74bb7b858b3b9))
+
 ## [3.11.1](https://github.com/Automattic/newspack-newsletters/compare/v3.11.0...v3.11.1) (2025-04-03)
 
 
