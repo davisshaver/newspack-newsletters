@@ -1,3 +1,46 @@
+# [3.21.0](https://github.com/Automattic/newspack-newsletters/compare/v3.20.0...v3.21.0) (2025-08-25)
+
+
+### Bug Fixes
+
+* **ads:** only apply click tracking to ad links ([#1895](https://github.com/Automattic/newspack-newsletters/issues/1895)) ([d20b763](https://github.com/Automattic/newspack-newsletters/commit/d20b76313137241e8ab3a589acc17db64bb39c01))
+* email styling issues ([#1878](https://github.com/Automattic/newspack-newsletters/issues/1878)) ([e2f9726](https://github.com/Automattic/newspack-newsletters/commit/e2f972658ac287c784ef8949c522f1d489cab79c))
+* handle scheduled in past sending ([#1886](https://github.com/Automattic/newspack-newsletters/issues/1886)) ([8143259](https://github.com/Automattic/newspack-newsletters/commit/8143259a342e9a57deca7c9a50b96f655ef99f60))
+
+
+### Features
+
+* ads placements ([#1880](https://github.com/Automattic/newspack-newsletters/issues/1880)) ([291c82f](https://github.com/Automattic/newspack-newsletters/commit/291c82f23530af041c8e6d815cbb200b968ad02b))
+* improve CLI ([#1872](https://github.com/Automattic/newspack-newsletters/issues/1872)) ([aa0b684](https://github.com/Automattic/newspack-newsletters/commit/aa0b68410abc77c21b520ac9d55656aa48ca77ab))
+* **subscribe-block:** add modern grid style variation ([#1869](https://github.com/Automattic/newspack-newsletters/issues/1869)) ([3eb1b5d](https://github.com/Automattic/newspack-newsletters/commit/3eb1b5d8acd9a4934de71d6dc78149e8d664887a))
+
+# [3.20.0](https://github.com/Automattic/newspack-newsletters/compare/v3.19.1...v3.20.0) (2025-08-21)
+
+
+### Features
+
+* **activecampaign:** custom address ID via constant ([#1899](https://github.com/Automattic/newspack-newsletters/issues/1899)) ([47da6b7](https://github.com/Automattic/newspack-newsletters/commit/47da6b7dcb5c28c5f34f6ab03b0002f62117b662))
+
+## [3.19.1](https://github.com/Automattic/newspack-newsletters/compare/v3.19.0...v3.19.1) (2025-08-12)
+
+
+### Bug Fixes
+
+* **ads:** ads in scheduled newsletters ([#1885](https://github.com/Automattic/newspack-newsletters/issues/1885)) ([a895989](https://github.com/Automattic/newspack-newsletters/commit/a895989acd94f3edeacfbfb342fd3a6158706e90))
+
+# [3.19.0](https://github.com/Automattic/newspack-newsletters/compare/v3.18.0...v3.19.0) (2025-08-11)
+
+
+### Bug Fixes
+
+* Support Unit Tests for php 8.3 ([#1866](https://github.com/Automattic/newspack-newsletters/issues/1866)) ([03c5ceb](https://github.com/Automattic/newspack-newsletters/commit/03c5ceb311a4ab7718bbf3ca35e13c24b1e7bc7b))
+
+
+### Features
+
+* **posts-inserter-block:** handle custom bylines ([#1871](https://github.com/Automattic/newspack-newsletters/issues/1871)) ([60f2824](https://github.com/Automattic/newspack-newsletters/commit/60f28248fe8c7ef8cdb8a95f2a67cea9e841be61))
+* typo ([#1870](https://github.com/Automattic/newspack-newsletters/issues/1870)) ([5933e4c](https://github.com/Automattic/newspack-newsletters/commit/5933e4ce7d3f73d010dcf16c65b64fea1d9056f0))
+
 # [3.18.0](https://github.com/Automattic/newspack-newsletters/compare/v3.17.0...v3.18.0) (2025-07-28)
 
 
