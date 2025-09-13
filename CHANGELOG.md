@@ -1,3 +1,52 @@
+## [3.22.2](https://github.com/Automattic/newspack-newsletters/compare/v3.22.1...v3.22.2) (2025-09-11)
+
+
+### Bug Fixes
+
+* persist meta populated from layout for new drafts ([#1917](https://github.com/Automattic/newspack-newsletters/issues/1917)) ([f751b1e](https://github.com/Automattic/newspack-newsletters/commit/f751b1e980e22c1d5b9e3c367e8fb693c9a09469))
+
+## [3.22.1](https://github.com/Automattic/newspack-newsletters/compare/v3.22.0...v3.22.1) (2025-09-09)
+
+
+### Bug Fixes
+
+* cast disable_auto_ads value as boolean ([#1915](https://github.com/Automattic/newspack-newsletters/issues/1915)) ([54f1914](https://github.com/Automattic/newspack-newsletters/commit/54f1914830bd4ad3cbda2cc774f25a45b4d0f58e))
+
+# [3.22.0](https://github.com/Automattic/newspack-newsletters/compare/v3.21.3...v3.22.0) (2025-09-08)
+
+
+### Bug Fixes
+
+* **ads:** only apply click tracking to ad links ([#1895](https://github.com/Automattic/newspack-newsletters/issues/1895)) ([7d826c8](https://github.com/Automattic/newspack-newsletters/commit/7d826c8f95d582c361745118cc7613b915c5df46))
+* respect block spacing when rendering ([#1894](https://github.com/Automattic/newspack-newsletters/issues/1894)) ([8293690](https://github.com/Automattic/newspack-newsletters/commit/8293690828eed85f4dd0276c6f833154dd97cc0c))
+
+
+### Features
+
+* add support for Foundation Community Remote Data Blocks ([#1898](https://github.com/Automattic/newspack-newsletters/issues/1898)) ([e5fd624](https://github.com/Automattic/newspack-newsletters/commit/e5fd62447a8c332d25340e1f6aed985a28516f14))
+* **layouts:** persist auto ads option ([#1896](https://github.com/Automattic/newspack-newsletters/issues/1896)) ([2b3ffac](https://github.com/Automattic/newspack-newsletters/commit/2b3ffacd663f8a997dc67e1830a9f8b765e72e99))
+
+## [3.21.3](https://github.com/Automattic/newspack-newsletters/compare/v3.21.2...v3.21.3) (2025-09-08)
+
+
+### Bug Fixes
+
+* email html update handling ([#1909](https://github.com/Automattic/newspack-newsletters/issues/1909)) ([2ce2e8c](https://github.com/Automattic/newspack-newsletters/commit/2ce2e8cac9084a8af76015b266d411bd2f16fbe1))
+
+## [3.21.2](https://github.com/Automattic/newspack-newsletters/compare/v3.21.1...v3.21.2) (2025-09-04)
+
+
+### Bug Fixes
+
+* wait for fetch before clearing list or sublist ids ([#1907](https://github.com/Automattic/newspack-newsletters/issues/1907)) ([1435d61](https://github.com/Automattic/newspack-newsletters/commit/1435d61e133f6fe869d694dfb834d49725de13c8)), closes [#1905](https://github.com/Automattic/newspack-newsletters/issues/1905)
+
+## [3.21.1](https://github.com/Automattic/newspack-newsletters/compare/v3.21.0...v3.21.1) (2025-09-02)
+
+
+### Bug Fixes
+
+* reset newsletter list when not found in ESP ([#1905](https://github.com/Automattic/newspack-newsletters/issues/1905)) ([3e09b6c](https://github.com/Automattic/newspack-newsletters/commit/3e09b6ccaaa5226cfcf8a4ba7a78b107ca2d6ec9))
+
 # [3.21.0](https://github.com/Automattic/newspack-newsletters/compare/v3.20.0...v3.21.0) (2025-08-25)
 
 
