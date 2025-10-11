@@ -1,3 +1,46 @@
+## [3.23.5](https://github.com/Automattic/newspack-newsletters/compare/v3.23.4...v3.23.5) (2025-10-08)
+
+
+### Bug Fixes
+
+* **mailchimp:** strip protocol strings from link-based merge tags ([#1934](https://github.com/Automattic/newspack-newsletters/issues/1934)) ([dbd4e19](https://github.com/Automattic/newspack-newsletters/commit/dbd4e1960699908f2a975030d1b820abe689596b))
+
+## [3.23.4](https://github.com/Automattic/newspack-newsletters/compare/v3.23.3...v3.23.4) (2025-10-07)
+
+
+### Bug Fixes
+
+* **activecampaign:** only trigger contact deletion when in change email context ([#1938](https://github.com/Automattic/newspack-newsletters/issues/1938)) ([e1a0cb0](https://github.com/Automattic/newspack-newsletters/commit/e1a0cb0306ac63c9629cfe9a53f406cd0a18c1a2))
+
+## [3.23.3](https://github.com/Automattic/newspack-newsletters/compare/v3.23.2...v3.23.3) (2025-10-07)
+
+
+### Bug Fixes
+
+* **activecampaign:** add required sdate param ([#1940](https://github.com/Automattic/newspack-newsletters/issues/1940)) ([bb9fd09](https://github.com/Automattic/newspack-newsletters/commit/bb9fd0991a9c6425f535b4a92d68d15189320c7c))
+
+## [3.23.2](https://github.com/Automattic/newspack-newsletters/compare/v3.23.1...v3.23.2) (2025-10-06)
+
+
+### Bug Fixes
+
+* avoid errors ([#1927](https://github.com/Automattic/newspack-newsletters/issues/1927)) ([8bad336](https://github.com/Automattic/newspack-newsletters/commit/8bad336aa3fcf0b9c4f02fc651c8fe52938dc83b))
+* update download URL for db.php ([#1920](https://github.com/Automattic/newspack-newsletters/issues/1920)) ([bf89e79](https://github.com/Automattic/newspack-newsletters/commit/bf89e799440d7818fa74485f63be12e11697b3e6))
+
+## [3.23.1](https://github.com/Automattic/newspack-newsletters/compare/v3.23.0...v3.23.1) (2025-09-22)
+
+
+### Bug Fixes
+
+* trigger save before opening send modal ([#1925](https://github.com/Automattic/newspack-newsletters/issues/1925)) ([7492915](https://github.com/Automattic/newspack-newsletters/commit/74929153a240eb0e6aa68093b3480e5510d8c466))
+
+# [3.23.0](https://github.com/Automattic/newspack-newsletters/compare/v3.22.2...v3.23.0) (2025-09-22)
+
+
+### Features
+
+* keep line breaks on lists descriptions ([#1906](https://github.com/Automattic/newspack-newsletters/issues/1906)) ([b4416c4](https://github.com/Automattic/newspack-newsletters/commit/b4416c4dabaea342ddcef7575ceb1cdefa50fffb))
+
 ## [3.22.2](https://github.com/Automattic/newspack-newsletters/compare/v3.22.1...v3.22.2) (2025-09-11)
 
 
