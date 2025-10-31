@@ -1,3 +1,30 @@
+# [3.24.0](https://github.com/Automattic/newspack-newsletters/compare/v3.23.7...v3.24.0) (2025-10-30)
+
+
+### Bug Fixes
+
+* better handling for padding and border style attributes in newsletters ([#1948](https://github.com/Automattic/newspack-newsletters/issues/1948)) ([42d8ee1](https://github.com/Automattic/newspack-newsletters/commit/42d8ee1766ea9253cd54c70ad25e7fcbbc495334))
+* **dependencies:** restore last known working package version ([#1949](https://github.com/Automattic/newspack-newsletters/issues/1949)) ([a6d1c3e](https://github.com/Automattic/newspack-newsletters/commit/a6d1c3e08386ec2a8b3483ba5e1a2b366bb4493c))
+
+
+### Features
+
+* **visibility-attribute:** support email-only blocks ([#1941](https://github.com/Automattic/newspack-newsletters/issues/1941)) ([017673c](https://github.com/Automattic/newspack-newsletters/commit/017673c0d4e294cfb691902f92f153162e08a447))
+
+## [3.23.7](https://github.com/Automattic/newspack-newsletters/compare/v3.23.6...v3.23.7) (2025-10-14)
+
+
+### Bug Fixes
+
+* revert borders and padding in email HTML hotfix ([#1947](https://github.com/Automattic/newspack-newsletters/issues/1947)) ([d7525eb](https://github.com/Automattic/newspack-newsletters/commit/d7525ebcacc678ae1fa262cba00195c1702c3948))
+
+## [3.23.6](https://github.com/Automattic/newspack-newsletters/compare/v3.23.5...v3.23.6) (2025-10-13)
+
+
+### Bug Fixes
+
+* borders and padding in email HTML ([f2c4368](https://github.com/Automattic/newspack-newsletters/commit/f2c4368484dc79fc340d39f4291f909b8447a8ca))
+
 ## [3.23.5](https://github.com/Automattic/newspack-newsletters/compare/v3.23.4...v3.23.5) (2025-10-08)
 
 
