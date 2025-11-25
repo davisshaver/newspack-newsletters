@@ -10,7 +10,7 @@
 
 <mjml>
 	<mj-head>
-		<mj-title><?php echo $title; ?></mj-title>
+		<mj-title><?php echo htmlentities( $title ); ?></mj-title>
 		<mj-style>
 		<?php
 			$default_css = file_get_contents( dirname( __FILE__ ) . '/email-template-mjml.css' );
