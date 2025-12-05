@@ -1,3 +1,17 @@
+## [3.25.2](https://github.com/Automattic/newspack-newsletters/compare/v3.25.1...v3.25.2) (2025-12-03)
+
+
+### Bug Fixes
+
+* rename blockVisibility to visibility ([#1991](https://github.com/Automattic/newspack-newsletters/issues/1991)) ([1e9cf1d](https://github.com/Automattic/newspack-newsletters/commit/1e9cf1d743bfa08b7c280d5765c20e63f44c172b))
+
+## [3.25.1](https://github.com/Automattic/newspack-newsletters/compare/v3.25.0...v3.25.1) (2025-11-26)
+
+
+### Bug Fixes
+
+* **mjml:** escape values when converting post to MJML ([#1976](https://github.com/Automattic/newspack-newsletters/issues/1976)) ([8a61355](https://github.com/Automattic/newspack-newsletters/commit/8a61355813650901851b4218a79c66319feecdf9))
+
 # [3.25.0](https://github.com/Automattic/newspack-newsletters/compare/v3.24.2...v3.25.0) (2025-11-24)
 
 
