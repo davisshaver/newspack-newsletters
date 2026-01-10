@@ -1,3 +1,25 @@
+# [3.26.0](https://github.com/Automattic/newspack-newsletters/compare/v3.25.5...v3.26.0) (2026-01-05)
+
+
+### Features
+
+* add support for WP 6.9's Notes feature to Newsletters ([#1975](https://github.com/Automattic/newspack-newsletters/issues/1975)) ([52d2caf](https://github.com/Automattic/newspack-newsletters/commit/52d2cafaf64c773ff88030335f8d7d7ef59e4d14))
+* default mailchimp footer ([#1977](https://github.com/Automattic/newspack-newsletters/issues/1977)) ([3239120](https://github.com/Automattic/newspack-newsletters/commit/3239120fd9cdbb4617342cbeda6680683264a3d3))
+
+## [3.25.5](https://github.com/Automattic/newspack-newsletters/compare/v3.25.4...v3.25.5) (2025-12-17)
+
+
+### Bug Fixes
+
+* **memberships-cli:** avoid reuse of variable name ([#2001](https://github.com/Automattic/newspack-newsletters/issues/2001)) ([249c39d](https://github.com/Automattic/newspack-newsletters/commit/249c39d2a348dc7240cf87cf300f28a27346da40))
+
+## [3.25.4](https://github.com/Automattic/newspack-newsletters/compare/v3.25.3...v3.25.4) (2025-12-09)
+
+
+### Bug Fixes
+
+* make sure a log file always exists ([#1996](https://github.com/Automattic/newspack-newsletters/issues/1996)) ([f1976a0](https://github.com/Automattic/newspack-newsletters/commit/f1976a0cac4a643733d95358145e5339a8d7ce19))
+
 ## [3.25.3](https://github.com/Automattic/newspack-newsletters/compare/v3.25.2...v3.25.3) (2025-12-08)
 
 
